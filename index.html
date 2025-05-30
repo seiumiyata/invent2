@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>棚卸しPWAアプリ</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <!-- xlsx.js（Excelファイル読み込み用） -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <!-- html5-qrcode（QRコード読取用） -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <header>
+    <h1>棚卸しPWAアプリ</h1>
+  </header>
+  <main>
+    <!-- メインメニュー -->
+    <div id="menu" class="menu">
+      <button onclick="showPage('inventory')">棚卸し</button>
+      <button onclick="showPage('import')">データ取り込み</button>
+      <button onclick="showPage('export')">データ出力</button>
+      <button onclick="showPage('edit')">編集</button>
+      <button onclick="showPage('settings')">設定</button>
+    </div>
+
+    <!-- 棚卸し画面 -->
+    <form id="inventory" class="page" onsubmit="event.preventDefault(); registerInventory();">
+      <div class="progress-bar"><div id="progress" class="progress-bar-inner"></div></div>
+      <div class="form-group">
+        <label>商品コード</label>
+        <input type="text" id="code" autocomplete="off">
+        <button type="button" onclick="openQrReader()">カメラ</button>
+      </div>
+      <div class="form-group">
+        <label>商品名</label>
+        <input type="text" id="productName" readonly>
+      </div>
+      <div class="form-group">
+        <label>ロット</label>
+        <select id="lotSelect"></select>
+        <input type="text" id="lotInput" placeholder="該当ロットがない場合入力">
+      </div>
+      <div class="form-group">
+        <label>数量</label>
+        <input type="number" id="quantity" min="1" value="1">
+      </div>
+      <div class="form-group">
+        <label>単位</label>
+        <select id="unit">
+          <option value="個">個</option>
+          <option value="箱">箱</option>
+          <option value="甲">甲</option>
+        </select>
+      </div>
+      <div id="inventoryError" class="error"></div>
+      <button type="submit" class="btn-main">登録</button>
+      <button type="button" class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
+      <div class="history-list" id="historyList"></div>
+      <!-- QRコード読取用モーダル -->
+      <div id="qrModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000a;z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:#fff;padding:1em;border-radius:8px;max-width:350px;margin:auto;">
+          <div id="qr-reader" style="width:320px"></div>
+          <button onclick="closeQrReader()" class="btn-secondary" style="width:100%">キャンセル</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- データ取り込み画面 -->
+    <div id="import" class="page">
+      <h2>データ取り込み</h2>
+      <div>
+        <label>商品マスタ（.xls/.xlsx）</label>
+        <input type="file" id="masterFile">
+        <button onclick="importMaster()">取り込み</button>
+      </div>
+      <div>
+        <label>在庫データ（.xls/.xlsx）</label>
+        <input type="file" id="stockFile">
+        <button onclick="importStock()">取り込み</button>
+      </div>
+      <div id="importError" class="error"></div>
+      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
+    </div>
+
+    <!-- データ出力画面 -->
+    <div id="export" class="page">
+      <h2>データ出力</h2>
+      <label>出力形式</label>
+      <select id="exportFormat">
+        <option value="csv">CSV</option>
+        <option value="xlsx">Excel(xlsx)</option>
+      </select>
+      <button onclick="exportData()">出力</button>
+      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
+      <div id="exportError" class="error"></div>
+    </div>
+
+    <!-- 編集画面 -->
+    <div id="edit" class="page">
+      <h2>編集</h2>
+      <div id="editList"></div>
+      <button onclick="deleteSelected()">選択削除</button>
+      <button onclick="deleteAll()">全削除</button>
+      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
+      <div id="editError" class="error"></div>
+    </div>
+
+    <!-- 設定画面 -->
+    <div id="settings" class="page">
+      <h2>設定</h2>
+      <div>
+        <label>担当者名</label>
+        <input type="text" id="userName">
+      </div>
+      <div>
+        <label>センター名</label>
+        <input type="text" id="centerName">
+      </div>
+      <div>
+        <label>コード種別</label>
+        <select id="codeType">
+          <option value="QR">QR</option>
+          <option value="JAN">JAN</option>
+        </select>
+      </div>
+      <div>
+        <label>出力形式</label>
+        <select id="settingExportFormat">
+          <option value="csv">CSV</option>
+          <option value="xlsx">Excel(xlsx)</option>
+        </select>
+      </div>
+      <div>
+        <label>入力形式</label>
+        <select id="settingImportFormat">
+          <option value="xls">Excel(xls)</option>
+          <option value="xlsx">Excel(xlsx)</option>
+        </select>
+      </div>
+      <button onclick="saveSettings()">保存</button>
+      <button onclick="clearAllData()">データ全消去</button>
+      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
+      <div id="settingsError" class="error"></div>
+    </div>
+  </main>
+  <script>
+    // ====== データ保存・マスタ・在庫データ管理 ======
+    const STORAGE_KEY = 'inventoryData_v2';
+    const MASTER_KEY = 'masterData_v2';
+    const STOCK_KEY = 'stockData_v2';
+    const SETTINGS_KEY = 'settings_v2';
+
+    let masterData = [];
+    let stockData = [];
+
+    // ====== ページ遷移 ======
+    function showPage(page) {
+      document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+      document.getElementById('menu').style.display = (page === 'menu') ? '' : 'none';
+      if (page !== 'menu') {
+        document.getElementById(page).style.display = '';
+      }
+      if (page === 'inventory') {
+        updateLotSelect();
+        updateHistory();
+        updateProgress();
+        clearInventoryForm();
+      }
+      if (page === 'edit') updateEditList();
+      if (page === 'settings') loadSettings();
+    }
+    // 初期表示
+    showPage('menu');
+
+    // ====== 棚卸し機能 ======
+    function registerInventory() {
+      const code = document.getElementById('code').value.trim();
+      const lot = document.getElementById('lotInput').value.trim() || document.getElementById('lotSelect').value;
+      const quantity = parseInt(document.getElementById('quantity').value, 10);
+      const unit = document.getElementById('unit').value;
+      const userName = localStorage.getItem(SETTINGS_KEY + '_userName') || '';
+      const centerName = localStorage.getItem(SETTINGS_KEY + '_centerName') || '';
+      if (!code) return showError('inventoryError', '商品コードを入力してください');
+      if (!lot) return showError('inventoryError', 'ロットを入力または選択してください');
+      if (!quantity || quantity < 1) return showError('inventoryError', '数量を正しく入力してください');
+      if (!unit) return showError('inventoryError', '単位を選択してください');
+      // 商品名自動表示
+      const product = masterData.find(m => m.code === code);
+      const productName = product ? product.name : '未登録商品';
+      document.getElementById('productName').value = productName;
+      // 登録
+      const data = loadData();
+      data.push({ code, productName, lot, quantity, unit, userName, centerName, timestamp: new Date().toISOString() });
+      saveData(data);
+      playSound();
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+      clearInventoryForm();
+      updateHistory();
+      updateProgress();
+      showError('inventoryError', '登録しました', true);
+    }
+    function clearInventoryForm() {
+      document.getElementById('code').value = '';
+      document.getElementById('productName').value = '';
+      document.getElementById('lotInput').value = '';
+      document.getElementById('quantity').value = 1;
+      document.getElementById('unit').value = '個';
+    }
+    function loadData() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    }
+    function saveData(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+    function updateHistory() {
+      const data = loadData();
+      const list = data.slice(-5).reverse();
+      const div = document.getElementById('historyList');
+      div.innerHTML = list.map(item =>
+        `<div class="history-item">${item.productName} (${item.code})<br>ロット:${item.lot} 数量:${item.quantity}${item.unit} <span style="color:#888;font-size:0.9em;">${item.timestamp.slice(0,16).replace('T',' ')}</span></div>`
+      ).join('') || '<div style="color:#888;">履歴はありません</div>';
+    }
+    function updateProgress() {
+      const data = loadData();
+      const total = 100; // 仮の全体件数
+      const done = data.length;
+      const percent = Math.min(100, Math.round((done / total) * 100));
+      document.getElementById('progress').style.width = percent + '%';
+    }
+    function updateLotSelect() {
+      // ロット選択肢生成（stockDataから取得）
+      const lotSel = document.getElementById('lotSelect');
+      lotSel.innerHTML = '';
+      let lots = Array.from(new Set(stockData.map(s => s.lot)));
+      lots.forEach(lot => {
+        let opt = document.createElement('option');
+        opt.value = lot;
+        opt.textContent = lot;
+        lotSel.appendChild(opt);
+      });
+    }
+    function showError(id, msg, success = false) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.style.color = success ? '#388e3c' : '#d32f2f';
+      setTimeout(() => el.textContent = '', 1500);
+    }
+    function playSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 1047; g.gain.value = 0.1;
+        o.connect(g).connect(ctx.destination); o.start();
+        setTimeout(() => { o.stop(); ctx.close(); }, 120);
+      } catch (e) {}
+    }
+
+    // ====== QRコード読取 ======
+    let qrReader = null;
+    function openQrReader() {
+      document.getElementById('qrModal').style.display = 'flex';
+      if (!qrReader) {
+        qrReader = new Html5Qrcode("qr-reader");
+      }
+      qrReader.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        qrCodeMessage => {
+          document.getElementById('code').value = qrCodeMessage;
+          closeQrReader();
+        },
+        errorMsg => {}
+      ).catch(err => {
+        alert('カメラ起動に失敗しました: ' + err);
+        closeQrReader();
+      });
+    }
+    function closeQrReader() {
+      document.getElementById('qrModal').style.display = 'none';
+      if (qrReader) qrReader.stop().then(() => {}, () => {});
+    }
+
+    // ====== データ取り込み ======
+    function importMaster() {
+      const file = document.getElementById('masterFile').files[0];
+      if (!file) return showError('importError', '商品マスタファイルを選択してください');
+      readExcel(file, rows => {
+        masterData = rows.map(r => ({ code: r['商品コード'], name: r['商品名'] }));
+        localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+        showError('importError', '商品マスタ取り込み完了', true);
+      });
+    }
+    function importStock() {
+      const file = document.getElementById('stockFile').files[0];
+      if (!file) return showError('importError', '在庫データファイルを選択してください');
+      readExcel(file, rows => {
+        stockData = rows.map(r => ({ code: r['商品コード'], lot: r['ロット'] }));
+        localStorage.setItem(STOCK_KEY, JSON.stringify(stockData));
+        showError('importError', '在庫データ取り込み完了', true);
+      });
+    }
+    function readExcel(file, callback) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        callback(rows);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // ====== データ出力 ======
+    function exportData() {
+      const format = document.getElementById('exportFormat').value;
+      const data = loadData();
+      if (data.length === 0) return showError('exportError', '出力データがありません');
+      if (format === 'csv') {
+        const csv = toCSV(data);
+        downloadFile(csv, 'inventory.csv', 'text/csv');
+      } else {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '棚卸しデータ');
+        XLSX.writeFile(wb, 'inventory.xlsx');
+      }
+      showError('exportError', '出力しました', true);
+    }
+    function toCSV(data) {
+      const keys = Object.keys(data[0]);
+      return keys.join(',') + '\n' + data.map(row => keys.map(k => `"${row[k]}"`).join(',')).join('\n');
+    }
+    function downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+
+    // ====== 編集 ======
+    function updateEditList() {
+      const data = loadData();
+      const div = document.getElementById('editList');
+      div.innerHTML = data.map((item, i) =>
+        `<label><input type="checkbox" class="editChk" value="${i}">${item.productName} (${item.code}) ロット:${item.lot} 数量:${item.quantity}${item.unit}</label>`
+      ).join('') || '<div style="color:#888;">データがありません</div>';
+    }
+    function deleteSelected() {
+      const chks = document.querySelectorAll('.editChk:checked');
+      if (!chks.length) return showError('editError', '削除対象を選択してください');
+      let data = loadData();
+      const idxs = Array.from(chks).map(chk => parseInt(chk.value, 10));
+      data = data.filter((_, i) => !idxs.includes(i));
+      saveData(data);
+      updateEditList();
+      showError('editError', '削除しました', true);
+    }
+    function deleteAll() {
+      if (confirm('全データを削除します。よろしいですか？')) {
+        saveData([]);
+        updateEditList();
+        showError('editError', '全削除しました', true);
+      }
+    }
+
+    // ====== 設定 ======
+    function loadSettings() {
+      document.getElementById('userName').value = localStorage.getItem(SETTINGS_KEY + '_userName') || '';
+      document.getElementById('centerName').value = localStorage.getItem(SETTINGS_KEY + '_centerName') || '';
+      document.getElementById('codeType').value = localStorage.getItem(SETTINGS_KEY + '_codeType') || 'QR';
+      document.getElementById('settingExportFormat').value = localStorage.getItem(SETTINGS_KEY + '_exportFormat') || 'csv';
+      document.getElementById('settingImportFormat').value = localStorage.getItem(SETTINGS_KEY + '_importFormat') || 'xls';
+    }
+    function saveSettings() {
+      localStorage.setItem(SETTINGS_KEY + '_userName', document.getElementById('userName').value);
+      localStorage.setItem(SETTINGS_KEY + '_centerName', document.getElementById('centerName').value);
+      localStorage.setItem(SETTINGS_KEY + '_codeType', document.getElementById('codeType').value);
+      localStorage.setItem(SETTINGS_KEY + '_exportFormat', document.getElementById('settingExportFormat').value);
+      localStorage.setItem(SETTINGS_KEY + '_importFormat', document.getElementById('settingImportFormat').value);
+      showError('settingsError', '保存しました', true);
+    }
+    function clearAllData() {
+      if (confirm('全データを消去します。よろしいですか？')) {
+        localStorage.clear();
+        masterData = [];
+        stockData = [];
+        showError('settingsError', '全データ消去しました', true);
+      }
+    }
+
+    // ====== 初期マスタ・在庫データ読み込み ======
+    window.onload = function() {
+      masterData = JSON.parse(localStorage.getItem(MASTER_KEY) || '[]');
+      stockData = JSON.parse(localStorage.getItem(STOCK_KEY) || '[]');
+    };
+  </script>
+</body>
+</html>
