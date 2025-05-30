@@ -7,7 +7,6 @@ const urlsToCache = [
   './xlsx.full.min.js',
   './html5-qrcode.min.js',
   './manifest.json',
-  // 必要に応じてアイコン画像なども追加
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-1024.png'
