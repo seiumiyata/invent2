@@ -52,23 +52,50 @@ function showPage(page) {
 
 // ====== 棚卸し機能 ======
 function registerInventory() {
-  const code = document.getElementById('code').value.trim();
+  const codeInput = document.getElementById('code').value.trim();
   const lot = document.getElementById('lotInput').value.trim() || document.getElementById('lotSelect').value;
   const quantity = parseInt(document.getElementById('quantity').value, 10);
   const unit = document.getElementById('unit').value;
   const userName = localStorage.getItem(SETTINGS_KEY + '_userName') || '';
   const centerName = localStorage.getItem(SETTINGS_KEY + '_centerName') || '';
-  if (!code) return showError('inventoryError', '商品コードを入力してください');
+
+  if (!codeInput) return showError('inventoryError', '商品コードまたはJANコードを入力してください');
   if (!lot) return showError('inventoryError', 'ロットを入力または選択してください');
   if (!quantity || quantity < 1) return showError('inventoryError', '数量を正しく入力してください');
   if (!unit) return showError('inventoryError', '単位を選択してください');
-  // 商品名自動表示
-  const product = masterData.find(m => m.code === code);
+
+  // 商品名・JANコード自動表示
+  const product = masterData.find(m => m.code === codeInput || m.jan === codeInput);
   const productName = product ? product.name : '未登録商品';
+  const code = product ? product.code : codeInput;
+  const jan = product ? product.jan : '';
+
   document.getElementById('productName').value = productName;
+
+  // 在庫データから該当在庫・倉庫名を取得（ロット・コード・センター一致）
+  let stockRecord = stockData.find(s =>
+    (s.code === code || s.jan === codeInput) &&
+    s.lot === lot &&
+    (centerName ? s.warehouse === centerName : true)
+  );
+  const stockQty = stockRecord ? stockRecord.stock : '';
+  const warehouse = stockRecord ? stockRecord.warehouse : '';
+
   // 登録
   const data = loadData();
-  data.push({ code, productName, lot, quantity, unit, userName, centerName, timestamp: new Date().toISOString() });
+  data.push({
+    code,
+    jan,
+    productName,
+    lot,
+    quantity,
+    unit,
+    userName,
+    centerName,
+    warehouse,
+    stockQty,
+    timestamp: new Date().toISOString()
+  });
   saveData(data);
   playSound();
   if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
@@ -95,7 +122,12 @@ function updateHistory() {
   const list = data.slice(-5).reverse();
   const div = document.getElementById('historyList');
   div.innerHTML = list.map(item =>
-    `<div class="history-item">${item.productName} (${item.code})<br>ロット:${item.lot} 数量:${item.quantity}${item.unit} <span style="color:#888;font-size:0.9em;">${item.timestamp.slice(0,16).replace('T',' ')}</span></div>`
+    `<div class="history-item">
+      ${item.productName} (${item.code})<br>
+      ロット:${item.lot} 数量:${item.quantity}${item.unit}
+      ${item.warehouse ? ` 倉庫:${item.warehouse}` : ''}
+      <span style="color:#888;font-size:0.9em;">${item.timestamp.slice(0,16).replace('T',' ')}</span>
+    </div>`
   ).join('') || '<div style="color:#888;">履歴はありません</div>';
 }
 function updateProgress() {
@@ -109,7 +141,7 @@ function updateLotSelect() {
   // ロット選択肢生成（stockDataから取得）
   const lotSel = document.getElementById('lotSelect');
   lotSel.innerHTML = '';
-  let lots = Array.from(new Set(stockData.map(s => s.lot)));
+  let lots = Array.from(new Set(stockData.map(s => s.lot))).filter(lot => lot);
   lots.forEach(lot => {
     let opt = document.createElement('option');
     opt.value = lot;
@@ -163,7 +195,11 @@ function importMaster() {
   const file = document.getElementById('masterFile').files[0];
   if (!file) return showError('importError', '商品マスタファイルを選択してください');
   readExcel(file, rows => {
-    masterData = rows.map(r => ({ code: r['商品コード'], name: r['商品名'] }));
+    masterData = rows.map(r => ({
+      code: r['商品コード'],   // A列
+      name: r['商品名'],       // B列
+      jan:  r['JANコード']     // W列
+    }));
     localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
     showError('importError', '商品マスタ取り込み完了', true);
   });
@@ -172,7 +208,14 @@ function importStock() {
   const file = document.getElementById('stockFile').files[0];
   if (!file) return showError('importError', '在庫データファイルを選択してください');
   readExcel(file, rows => {
-    stockData = rows.map(r => ({ code: r['商品コード'], lot: r['ロット'] }));
+    stockData = rows.map(r => ({
+      code: r['商品コード'],      // A列
+      name: r['商品名称'],        // B列
+      stock: r['データ上の在庫'], // C列
+      warehouse: r['倉庫名'],     // J列
+      lot: r['ロット番号'],       // P列
+      jan: r['JANコード']        // W列（在庫データにもJANコード列があれば）
+    }));
     localStorage.setItem(STOCK_KEY, JSON.stringify(stockData));
     showError('importError', '在庫データ取り込み完了', true);
   });
@@ -207,7 +250,7 @@ function exportData() {
 }
 function toCSV(data) {
   const keys = Object.keys(data[0]);
-  return keys.join(',') + '\n' + data.map(row => keys.map(k => `"${row[k]}"`).join(',')).join('\n');
+  return keys.join(',') + '\n' + data.map(row => keys.map(k => `"${row[k] ?? ''}"`).join(',')).join('\n');
 }
 function downloadFile(content, filename, type) {
   const blob = new Blob([content], { type });
@@ -222,7 +265,7 @@ function updateEditList() {
   const data = loadData();
   const div = document.getElementById('editList');
   div.innerHTML = data.map((item, i) =>
-    `<label><input type="checkbox" class="editChk" value="${i}">${item.productName} (${item.code}) ロット:${item.lot} 数量:${item.quantity}${item.unit}</label>`
+    `<label><input type="checkbox" class="editChk" value="${i}">${item.productName} (${item.code}) ロット:${item.lot} 数量:${item.quantity}${item.unit}${item.warehouse ? ' 倉庫:' + item.warehouse : ''}</label>`
   ).join('') || '<div style="color:#888;">データがありません</div>';
 }
 function deleteSelected() {
