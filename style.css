@@ -61,6 +61,14 @@ main {
   display: block;
 }
 
+h2 {
+  margin-top: 0.2em;
+  margin-bottom: 1em;
+  font-size: 1.3em;
+  color: #1976d2;
+  letter-spacing: 0.05em;
+}
+
 .form-group {
   margin-bottom: 1.2em;
 }
@@ -215,6 +223,14 @@ select:focus {
 #qrModal button:focus {
   background: #ddd;
   outline: none;
+}
+
+/* 編集画面のチェックボックス */
+#editList label {
+  display: block;
+  margin-bottom: 0.5em;
+  font-size: 1em;
+  cursor: pointer;
 }
 
 /* レスポンシブ対応 */
