@@ -1,4 +1,3 @@
-// ====== 定数・グローバル変数 ======
 const STORAGE_KEY = 'inventoryData_v2';
 const MASTER_KEY = 'masterData_v2';
 const STOCK_KEY = 'stockData_v2';
@@ -10,30 +9,12 @@ let qrReader = null;
 
 // ====== 初期化 ======
 window.addEventListener('DOMContentLoaded', () => {
-  // マスタ・在庫データ読み込み
   masterData = JSON.parse(localStorage.getItem(MASTER_KEY) || '[]');
   stockData = JSON.parse(localStorage.getItem(STOCK_KEY) || '[]');
-  // イベントバインド
-  bindMenuEvents();
-  // 初期表示
   showPage('menu');
 });
 
-// ====== メニュー・画面遷移 ======
-function bindMenuEvents() {
-  document.querySelectorAll('.menu button').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const page = e.target.textContent.trim();
-      switch (page) {
-        case '棚卸し': showPage('inventory'); break;
-        case 'データ取り込み': showPage('import'); break;
-        case 'データ出力': showPage('export'); break;
-        case '編集': showPage('edit'); break;
-        case '設定': showPage('settings'); break;
-      }
-    });
-  });
-}
+// ====== 画面遷移 ======
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
   document.getElementById('menu').style.display = (page === 'menu') ? '' : 'none';
@@ -138,7 +119,6 @@ function updateProgress() {
   document.getElementById('progress').style.width = percent + '%';
 }
 function updateLotSelect() {
-  // ロット選択肢生成（stockDataから取得）
   const lotSel = document.getElementById('lotSelect');
   lotSel.innerHTML = '';
   let lots = Array.from(new Set(stockData.map(s => s.lot))).filter(lot => lot);
