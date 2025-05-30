@@ -23,138 +23,19 @@
     <h1>棚卸しPWAアプリ</h1>
   </header>
   <main>
-    <!-- メインメニュー -->
-    <div id="menu" class="menu">
-      <button onclick="showPage('inventory')">棚卸し</button>
-      <button onclick="showPage('import')">データ取り込み</button>
-      <button onclick="showPage('export')">データ出力</button>
-      <button onclick="showPage('edit')">編集</button>
-      <button onclick="showPage('settings')">設定</button>
+  <div id="menu" class="menu">
+    <button onclick="showPage('inventory')">棚卸し</button>
+  </div>
+  <form id="inventory" class="page" style="display:none" onsubmit="event.preventDefault();">
+    <h2>棚卸し</h2>
+    <div class="form-group">
+      <label>商品コード</label>
+      <input type="text" id="code">
     </div>
+    <button type="button" onclick="showPage('menu')">メニューに戻る</button>
+  </form>
+</main>
 
-    <!-- 棚卸し画面 -->
-    <form id="inventory" class="page" style="display:none" onsubmit="event.preventDefault(); registerInventory();">
-      <h2>棚卸し</h2>
-      <div class="progress-bar"><div id="progress" class="progress-bar-inner"></div></div>
-      <div class="form-group">
-        <label>商品コード / JANコード</label>
-        <input type="text" id="code" autocomplete="off">
-        <button type="button" onclick="openQrReader()">カメラ</button>
-      </div>
-      <div class="form-group">
-        <label>商品名</label>
-        <input type="text" id="productName" readonly>
-      </div>
-      <div class="form-group">
-        <label>ロット</label>
-        <select id="lotSelect"></select>
-        <input type="text" id="lotInput" placeholder="該当ロットがない場合入力">
-      </div>
-      <div class="form-group">
-        <label>数量</label>
-        <input type="number" id="quantity" min="1" value="1">
-      </div>
-      <div class="form-group">
-        <label>単位</label>
-        <select id="unit">
-          <option value="個">個</option>
-          <option value="箱">箱</option>
-          <option value="甲">甲</option>
-        </select>
-      </div>
-      <div id="inventoryError" class="error"></div>
-      <button type="submit" class="btn-main">登録</button>
-      <button type="button" class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
-      <div class="history-list" id="historyList"></div>
-      <!-- QRコード読取用モーダル -->
-      <div id="qrModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000a;z-index:1000;align-items:center;justify-content:center;">
-        <div style="background:#fff;padding:1em;border-radius:8px;max-width:350px;margin:auto;">
-          <div id="qr-reader" style="width:320px"></div>
-          <button onclick="closeQrReader()" class="btn-secondary" style="width:100%">キャンセル</button>
-        </div>
-      </div>
-    </form>
-
-    <!-- データ取り込み画面 -->
-    <div id="import" class="page" style="display:none">
-      <h2>データ取り込み</h2>
-      <div class="form-group">
-        <label>商品マスタ（.xls/.xlsx）</label>
-        <input type="file" id="masterFile">
-        <button onclick="importMaster()">取り込み</button>
-      </div>
-      <div class="form-group">
-        <label>在庫データ（.xls/.xlsx）</label>
-        <input type="file" id="stockFile">
-        <button onclick="importStock()">取り込み</button>
-      </div>
-      <div id="importError" class="error"></div>
-      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
-    </div>
-
-    <!-- データ出力画面 -->
-    <div id="export" class="page" style="display:none">
-      <h2>データ出力</h2>
-      <div class="form-group">
-        <label>出力形式</label>
-        <select id="exportFormat">
-          <option value="csv">CSV</option>
-          <option value="xlsx">Excel(xlsx)</option>
-        </select>
-      </div>
-      <button onclick="exportData()">出力</button>
-      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
-      <div id="exportError" class="error"></div>
-    </div>
-
-    <!-- 編集画面 -->
-    <div id="edit" class="page" style="display:none">
-      <h2>編集</h2>
-      <div id="editList"></div>
-      <button onclick="deleteSelected()">選択削除</button>
-      <button onclick="deleteAll()">全削除</button>
-      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
-      <div id="editError" class="error"></div>
-    </div>
-
-    <!-- 設定画面 -->
-    <div id="settings" class="page" style="display:none">
-      <h2>設定</h2>
-      <div class="form-group">
-        <label>担当者名</label>
-        <input type="text" id="userName">
-      </div>
-      <div class="form-group">
-        <label>センター名</label>
-        <input type="text" id="centerName">
-      </div>
-      <div class="form-group">
-        <label>コード種別</label>
-        <select id="codeType">
-          <option value="QR">QR</option>
-          <option value="JAN">JAN</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>出力形式</label>
-        <select id="settingExportFormat">
-          <option value="csv">CSV</option>
-          <option value="xlsx">Excel(xlsx)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>入力形式</label>
-        <select id="settingImportFormat">
-          <option value="xls">Excel(xls)</option>
-          <option value="xlsx">Excel(xlsx)</option>
-        </select>
-      </div>
-      <button onclick="saveSettings()">保存</button>
-      <button onclick="clearAllData()">データ全消去</button>
-      <button class="btn-secondary" onclick="showPage('menu')">メニューに戻る</button>
-      <div id="settingsError" class="error"></div>
-    </div>
-  </main>
   <script src="app.js"></script>
 </body>
 </html>
