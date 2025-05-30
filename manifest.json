@@ -1,9 +1,10 @@
 {
   "name": "棚卸しPWAアプリ",
   "short_name": "棚卸し",
-  "description": "現場で使えるシンプル＆高機能な棚卸しPWAアプリ",
+  "description": "現場で使えるシンプル＆高機能な棚卸しPWAアプリ。商品マスタ・在庫データ取込、棚卸し、編集、出力、オフライン対応。",
   "lang": "ja",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#1976d2",
   "theme_color": "#1976d2",
@@ -25,6 +26,5 @@
       "type": "image/png"
     }
   ],
-  "scope": "./",
   "prefer_related_applications": false
 }
