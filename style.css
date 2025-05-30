@@ -1,0 +1,242 @@
+/* ベース設定 */
+body {
+  font-family: 'Meiryo', 'Segoe UI', sans-serif;
+  background: #f8f8f8;
+  margin: 0;
+  color: #222;
+  -webkit-tap-highlight-color: transparent;
+}
+
+header {
+  background: #1976d2;
+  color: #fff;
+  padding: 1em 0;
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  user-select: none;
+}
+
+main {
+  max-width: 430px;
+  margin: 2em auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 2em 1.5em;
+  box-sizing: border-box;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  margin-bottom: 2em;
+}
+
+.menu button {
+  font-size: 1.2em;
+  padding: 1em;
+  border-radius: 10px;
+  border: none;
+  background: #1976d2;
+  color: #fff;
+  font-weight: 700;
+  transition: background-color 0.3s ease;
+  user-select: none;
+}
+
+.menu button:hover,
+.menu button:focus {
+  background: #1565c0;
+  outline: none;
+}
+
+.page {
+  display: none;
+}
+
+.page.active {
+  display: block;
+}
+
+.form-group {
+  margin-bottom: 1.2em;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.4em;
+  font-weight: 600;
+  font-size: 1em;
+  user-select: none;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 0.8em 1em;
+  font-size: 1.1em;
+  border: 1.5px solid #bbb;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: #1976d2;
+  outline: none;
+}
+
+.btn-main {
+  width: 100%;
+  padding: 1.2em;
+  background: #43a047;
+  color: #fff;
+  font-size: 1.3em;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  margin-top: 1.5em;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  user-select: none;
+}
+
+.btn-main:hover,
+.btn-main:focus {
+  background: #388e3c;
+  outline: none;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 1em;
+  background: #eee;
+  color: #333;
+  font-size: 1.1em;
+  border: none;
+  border-radius: 10px;
+  margin-top: 0.8em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  background: #ddd;
+  outline: none;
+}
+
+.progress-bar {
+  background: #eee;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5em;
+  height: 14px;
+}
+
+.progress-bar-inner {
+  background: #1976d2;
+  height: 100%;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+.history-list {
+  margin-top: 1.5em;
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 1em;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 1em;
+  box-shadow: inset 0 0 5px #ccc;
+}
+
+.history-item {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0.6em 0;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.error {
+  color: #d32f2f;
+  font-weight: 700;
+  margin-bottom: 1em;
+  font-size: 1em;
+  user-select: none;
+}
+
+/* モーダル（QRコードリーダー用） */
+#qrModal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#qrModal > div {
+  background: #fff;
+  padding: 1.5em;
+  border-radius: 12px;
+  max-width: 360px;
+  width: 90vw;
+  box-sizing: border-box;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+#qrModal button {
+  margin-top: 1em;
+  width: 100%;
+  padding: 1em;
+  font-size: 1.1em;
+  border-radius: 10px;
+  border: none;
+  background: #eee;
+  color: #333;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#qrModal button:hover,
+#qrModal button:focus {
+  background: #ddd;
+  outline: none;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 480px) {
+  main {
+    margin: 1em 0.5em;
+    padding: 1.5em 1em;
+  }
+  .menu button, .btn-main, .btn-secondary {
+    font-size: 1.1em;
+    padding: 0.9em;
+    border-radius: 8px;
+  }
+  input[type="text"], input[type="number"], select {
+    font-size: 1em;
+    padding: 0.7em 0.9em;
+  }
+  .progress-bar {
+    height: 12px;
+  }
+  .history-list {
+    max-height: 140px;
+    font-size: 0.95em;
+  }
+}
