@@ -9,8 +9,13 @@ let qrReader = null;
 
 // ====== 初期化 ======
 window.addEventListener('DOMContentLoaded', () => {
-  masterData = JSON.parse(localStorage.getItem(MASTER_KEY) || '[]');
-  stockData = JSON.parse(localStorage.getItem(STOCK_KEY) || '[]');
+  try {
+    masterData = JSON.parse(localStorage.getItem(MASTER_KEY) || '[]');
+    stockData = JSON.parse(localStorage.getItem(STOCK_KEY) || '[]');
+  } catch (e) {
+    masterData = [];
+    stockData = [];
+  }
   showPage('menu');
 });
 
@@ -46,7 +51,7 @@ function registerInventory() {
   if (!unit) return showError('inventoryError', '単位を選択してください');
 
   // 商品名・JANコード自動表示
-  const product = masterData.find(m => m.code === codeInput || m.jan === codeInput);
+  const product = Array.isArray(masterData) ? masterData.find(m => m.code === codeInput || m.jan === codeInput) : undefined;
   const productName = product ? product.name : '未登録商品';
   const code = product ? product.code : codeInput;
   const jan = product ? product.jan : '';
@@ -54,11 +59,11 @@ function registerInventory() {
   document.getElementById('productName').value = productName;
 
   // 在庫データから該当在庫・倉庫名を取得（ロット・コード・センター一致）
-  let stockRecord = stockData.find(s =>
+  let stockRecord = Array.isArray(stockData) ? stockData.find(s =>
     (s.code === code || s.jan === codeInput) &&
     s.lot === lot &&
     (centerName ? s.warehouse === centerName : true)
-  );
+  ) : undefined;
   const stockQty = stockRecord ? stockRecord.stock : '';
   const warehouse = stockRecord ? stockRecord.warehouse : '';
 
@@ -93,41 +98,57 @@ function clearInventoryForm() {
   document.getElementById('unit').value = '個';
 }
 function loadData() {
-  return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(d) ? d : [];
+  } catch (e) {
+    return [];
+  }
 }
 function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 function updateHistory() {
   const data = loadData();
-  const list = data.slice(-5).reverse();
   const div = document.getElementById('historyList');
+  if (!Array.isArray(data) || data.length === 0) {
+    div.innerHTML = '<div style="color:#888;">履歴はありません</div>';
+    return;
+  }
+  const list = data.slice(-5).reverse();
   div.innerHTML = list.map(item =>
     `<div class="history-item">
       ${item.productName} (${item.code})<br>
       ロット:${item.lot} 数量:${item.quantity}${item.unit}
       ${item.warehouse ? ` 倉庫:${item.warehouse}` : ''}
-      <span style="color:#888;font-size:0.9em;">${item.timestamp.slice(0,16).replace('T',' ')}</span>
+      <span style="color:#888;font-size:0.9em;">${item.timestamp ? item.timestamp.slice(0,16).replace('T',' ') : ''}</span>
     </div>`
-  ).join('') || '<div style="color:#888;">履歴はありません</div>';
+  ).join('');
 }
 function updateProgress() {
   const data = loadData();
   const total = 100; // 仮の全体件数
-  const done = data.length;
+  const done = Array.isArray(data) ? data.length : 0;
   const percent = Math.min(100, Math.round((done / total) * 100));
   document.getElementById('progress').style.width = percent + '%';
 }
 function updateLotSelect() {
   const lotSel = document.getElementById('lotSelect');
   lotSel.innerHTML = '';
-  let lots = Array.from(new Set(stockData.map(s => s.lot))).filter(lot => lot);
-  lots.forEach(lot => {
+  let lots = Array.isArray(stockData) ? Array.from(new Set(stockData.map(s => s.lot))).filter(lot => lot) : [];
+  if (lots.length === 0) {
     let opt = document.createElement('option');
-    opt.value = lot;
-    opt.textContent = lot;
+    opt.value = '';
+    opt.textContent = '選択肢なし';
     lotSel.appendChild(opt);
-  });
+  } else {
+    lots.forEach(lot => {
+      let opt = document.createElement('option');
+      opt.value = lot;
+      opt.textContent = lot;
+      lotSel.appendChild(opt);
+    });
+  }
 }
 function showError(id, msg, success = false) {
   const el = document.getElementById(id);
@@ -216,7 +237,7 @@ function readExcel(file, callback) {
 function exportData() {
   const format = document.getElementById('exportFormat').value;
   const data = loadData();
-  if (data.length === 0) return showError('exportError', '出力データがありません');
+  if (!Array.isArray(data) || data.length === 0) return showError('exportError', '出力データがありません');
   if (format === 'csv') {
     const csv = toCSV(data);
     downloadFile(csv, 'inventory.csv', 'text/csv');
@@ -244,9 +265,13 @@ function downloadFile(content, filename, type) {
 function updateEditList() {
   const data = loadData();
   const div = document.getElementById('editList');
+  if (!Array.isArray(data) || data.length === 0) {
+    div.innerHTML = '<div style="color:#888;">データがありません</div>';
+    return;
+  }
   div.innerHTML = data.map((item, i) =>
     `<label><input type="checkbox" class="editChk" value="${i}">${item.productName} (${item.code}) ロット:${item.lot} 数量:${item.quantity}${item.unit}${item.warehouse ? ' 倉庫:' + item.warehouse : ''}</label>`
-  ).join('') || '<div style="color:#888;">データがありません</div>';
+  ).join('');
 }
 function deleteSelected() {
   const chks = document.querySelectorAll('.editChk:checked');
