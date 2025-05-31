@@ -1,6 +1,4 @@
 // Service Worker - 棚卸しPWA完全版
-// sw.js
-
 const CACHE_NAME = 'inventory-pwa-v1.0.0';
 
 // キャッシュするファイル
@@ -19,10 +17,8 @@ const CACHE_ASSETS = [
 // インストール時の処理
 self.addEventListener('install', (event) => {
   console.log('Service Worker: インストール中...');
-  
   // キャッシュの即時更新のために skipWaiting を使用
   self.skipWaiting();
-  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -41,7 +37,6 @@ self.addEventListener('install', (event) => {
 // アクティベート時の処理
 self.addEventListener('activate', (event) => {
   console.log('Service Worker: アクティベート中...');
-  
   // 古いキャッシュを削除
   event.waitUntil(
     caches.keys()
@@ -69,7 +64,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // GET リクエストのみ処理
   if (event.request.method !== 'GET') return;
-  
+
   // APIリクエストなどは除外（必要に応じてカスタマイズ）
   if (event.request.url.includes('/api/')) {
     return;
@@ -81,13 +76,11 @@ self.addEventListener('fetch', (event) => {
         // キャッシュにあればそれを返す
         if (cacheResponse) {
           console.log('キャッシュから提供:', event.request.url);
-          
           // バックグラウンドでキャッシュを更新（オプション）
           updateCache(event.request);
-          
           return cacheResponse;
         }
-        
+
         // キャッシュになければネットワークから取得
         console.log('ネットワークから取得:', event.request.url);
         return fetch(event.request)
@@ -103,17 +96,15 @@ self.addEventListener('fetch', (event) => {
                   console.error('キャッシュ保存エラー:', error);
                 });
             }
-            
             return networkResponse;
           })
           .catch((error) => {
             console.error('ネットワークリクエストエラー:', error);
-            
             // HTML要求の場合はindex.htmlを返す（SPAの場合に有用）
-            if (event.request.headers.get('accept').includes('text/html')) {
+            if (event.request.headers.get('accept') && 
+                event.request.headers.get('accept').includes('text/html')) {
               return caches.match('./index.html');
             }
-            
             // その他はエラーを返す
             throw error;
           });
