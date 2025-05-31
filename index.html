@@ -10,6 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="棚卸し管理">
+    <link rel="manifest" href="./manifest.json">
     
     <!-- スタイル -->
     <link rel="stylesheet" href="./style.css">
@@ -72,6 +73,9 @@
             <!-- カメラセクション -->
             <section class="camera-section">
                 <div id="qr-reader" class="qr-reader"></div>
+                <button id="torch-btn" class="torch-btn hidden">
+                    <span id="torch-icon">🔦</span>
+                </button>
                 <div id="camera-status" class="camera-status">
                     カメラを開始してQRコードをスキャンしてください
                 </div>
@@ -79,7 +83,7 @@
 
             <div class="camera-controls">
                 <button id="start-camera" class="btn btn--primary btn--full-width">
-                    📷 カメラを開始
+                    📷 QRスキャン開始
                 </button>
                 <button id="stop-camera" class="btn btn--secondary btn--full-width hidden">
                     ⏹️ カメラを停止
@@ -90,7 +94,7 @@
             <form class="inventory-form">
                 <div class="form-group">
                     <label for="product-code" class="form-label">商品コード</label>
-                    <input type="text" id="product-code" class="form-control" placeholder="コード入力またはスキャン" autocomplete="off">
+                    <input type="text" id="product-code" class="form-control" placeholder="QR/JANコードを入力またはスキャン" autocomplete="off">
                     <small class="form-help">カメラでスキャンまたは手動入力</small>
                 </div>
 
@@ -102,6 +106,13 @@
                             <p id="product-description">商品説明</p>
                         </div>
                     </div>
+                </div>
+
+                <!-- 商品名手動入力（商品が見つからない場合） -->
+                <div id="manual-product-info" class="form-group hidden">
+                    <label for="manual-product-name" class="form-label">商品名（手動入力）</label>
+                    <input type="text" id="manual-product-name" class="form-control" placeholder="商品名を入力してください（空白可）">
+                    <small class="form-help">商品マスタにない場合は空白でも登録できます</small>
                 </div>
 
                 <div class="form-group">
@@ -152,7 +163,7 @@
                     <label for="import-type" class="form-label">データ種類</label>
                     <select id="import-type" class="form-control">
                         <option value="master">商品マスタ</option>
-                        <option value="stock">データ在庫</option>
+                        <option value="stock">在庫データ</option>
                     </select>
                 </div>
 
@@ -267,13 +278,13 @@
 
                 <div class="form-group">
                     <label for="center-name" class="form-label">センター名</label>
-                    <select id="center-name" class="form-control">
-                        <option value="東京センター">東京センター</option>
-                        <option value="大阪センター">大阪センター</option>
-                        <option value="名古屋センター">名古屋センター</option>
-                        <option value="other">その他</option>
-                    </select>
-                    <input type="text" id="center-name-custom" class="form-control hidden" placeholder="センター名を入力">
+                    <input type="text" id="center-name" class="form-control" list="center-names" placeholder="センター名を選択または入力">
+                    <datalist id="center-names">
+                        <option value="東京倉庫">
+                        <option value="大阪倉庫">
+                        <option value="名古屋倉庫">
+                    </datalist>
+                    <small class="form-help">在庫データから自動抽出されたセンター名、または手動入力</small>
                 </div>
 
                 <div class="form-group">
@@ -326,6 +337,33 @@
             </div>
         </div>
     </div>
+
+    <!-- 商品未登録確認ダイアログ -->
+    <div id="unknown-product-dialog" class="dialog">
+        <div class="dialog-content">
+            <h3>商品が見つかりません</h3>
+            <p id="unknown-product-message">商品マスタに該当商品がありません。コードのみで登録しますか？</p>
+            <div class="dialog-actions">
+                <button id="unknown-product-cancel" class="btn btn--secondary">キャンセル</button>
+                <button id="unknown-product-ok" class="btn btn--primary">登録する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PWA Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
 
     <!-- アプリケーションスクリプト -->
     <script src="./app.js"></script>

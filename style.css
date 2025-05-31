@@ -1138,12 +1138,47 @@ select.form-control {
   background-color: #000;
   border-radius: var(--radius-base);
   overflow: hidden;
-  height: 280px;
+  height: 300px;
 }
 
 .qr-reader {
   width: 100%;
   height: 100%;
+}
+
+/* トーチボタン（ライト制御） */
+.torch-btn {
+  position: absolute;
+  top: var(--space-16);
+  right: var(--space-16);
+  width: 56px;
+  height: 56px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  color: white;
+  font-size: var(--font-size-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-standard);
+  z-index: 10;
+}
+
+.torch-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: white;
+}
+
+.torch-btn:active {
+  transform: scale(0.95);
+}
+
+.torch-btn.active {
+  background: rgba(255, 255, 0, 0.9);
+  border-color: rgba(255, 255, 0, 1);
+  color: #000;
 }
 
 .camera-status {
@@ -1485,7 +1520,15 @@ select.form-control {
   }
   
   .camera-section {
-    height: 240px;
+    height: 260px;
+  }
+  
+  .torch-btn {
+    width: 48px;
+    height: 48px;
+    top: var(--space-12);
+    right: var(--space-12);
+    font-size: var(--font-size-lg);
   }
   
   .form-group {

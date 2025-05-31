@@ -1,4 +1,4 @@
-// app.js - 棚卸し管理PWAアプリケーション - 完全実装版
+// app.js - 棚卸し管理PWAアプリケーション - 改良版
 
 class InventoryApp {
     constructor() {
@@ -11,9 +11,10 @@ class InventoryApp {
         this.inventoryData = [];
         this.masterData = [];
         this.stockData = [];
+        this.centerNames = new Set(['東京倉庫', '大阪倉庫', '名古屋倉庫']); // デフォルトセンター名
         this.settings = {
             userName: '',
-            centerName: '東京センター',
+            centerName: '東京倉庫',
             codeType: 'QR',
             outputFormat: 'CSV'
         };
@@ -21,6 +22,7 @@ class InventoryApp {
         // QRスキャナー関連
         this.qrScanner = null;
         this.isScanning = false;
+        this.torchEnabled = false;
         
         // UI状態
         this.currentScreen = 'main-menu';
@@ -109,6 +111,7 @@ class InventoryApp {
                                 autoIncrement: true 
                             });
                             stockStore.createIndex('code', 'code', { unique: false });
+                            stockStore.createIndex('center', 'center', { unique: false });
                         }
                         
                         // 設定ストア
@@ -139,6 +142,9 @@ class InventoryApp {
             this.masterData = await this.getFromDB('master') || [];
             this.stockData = await this.getFromDB('stock') || [];
             
+            // センター名を抽出
+            this.extractCenterNames();
+            
             const savedSettings = await this.getSettingFromDB('userSettings');
             if (savedSettings) {
                 this.settings = { ...this.settings, ...savedSettings.value };
@@ -157,32 +163,33 @@ class InventoryApp {
     // メモリ上でサンプルデータを初期化
     initSampleDataMemory() {
         this.masterData = [
-            { code: '4901234567890', name: 'サンプル商品A', description: '商品Aの説明' },
-            { code: '4901234567891', name: 'サンプル商品B', description: '商品Bの説明' },
-            { code: '4901234567892', name: 'サンプル商品C', description: '商品Cの説明' }
+            { code: '1234567890123', name: 'サンプル商品A', description: '商品Aの説明' },
+            { code: '2345678901234', name: 'サンプル商品B', description: '商品Bの説明' },
+            { code: '3456789012345', name: 'サンプル商品C', description: '商品Cの説明' }
         ];
         
         this.stockData = [
-            { code: '4901234567890', center: '東京センター', warehouse: 'A倉庫', stock: 100 },
-            { code: '4901234567891', center: '東京センター', warehouse: 'B倉庫', stock: 50 },
-            { code: '4901234567892', center: '大阪センター', warehouse: 'C倉庫', stock: 75 }
+            { code: '1234567890123', center: '東京倉庫', warehouse: 'A倉庫', stock: 100 },
+            { code: '2345678901234', center: '大阪倉庫', warehouse: 'B倉庫', stock: 50 },
+            { code: '3456789012345', center: '名古屋倉庫', warehouse: 'C倉庫', stock: 75 }
         ];
         
+        this.extractCenterNames();
         console.log('サンプルデータをメモリに読み込みました');
     }
 
     // サンプルデータ初期化
     async initSampleData() {
         const sampleMaster = [
-            { code: '4901234567890', name: 'サンプル商品A', description: '商品Aの説明' },
-            { code: '4901234567891', name: 'サンプル商品B', description: '商品Bの説明' },
-            { code: '4901234567892', name: 'サンプル商品C', description: '商品Cの説明' }
+            { code: '1234567890123', name: 'サンプル商品A', description: '商品Aの説明' },
+            { code: '2345678901234', name: 'サンプル商品B', description: '商品Bの説明' },
+            { code: '3456789012345', name: 'サンプル商品C', description: '商品Cの説明' }
         ];
         
         const sampleStock = [
-            { code: '4901234567890', center: '東京センター', warehouse: 'A倉庫', stock: 100 },
-            { code: '4901234567891', center: '東京センター', warehouse: 'B倉庫', stock: 50 },
-            { code: '4901234567892', center: '大阪センター', warehouse: 'C倉庫', stock: 75 }
+            { code: '1234567890123', center: '東京倉庫', warehouse: 'A倉庫', stock: 100 },
+            { code: '2345678901234', center: '大阪倉庫', warehouse: 'B倉庫', stock: 50 },
+            { code: '3456789012345', center: '名古屋倉庫', warehouse: 'C倉庫', stock: 75 }
         ];
         
         try {
@@ -190,10 +197,37 @@ class InventoryApp {
             await this.saveToDB('stock', sampleStock);
             this.masterData = sampleMaster;
             this.stockData = sampleStock;
+            this.extractCenterNames();
         } catch (error) {
             console.error('サンプルデータ保存エラー:', error);
             this.masterData = sampleMaster;
             this.stockData = sampleStock;
+            this.extractCenterNames();
+        }
+    }
+
+    // 在庫データからセンター名を抽出
+    extractCenterNames() {
+        this.stockData.forEach(item => {
+            if (item.center) {
+                this.centerNames.add(item.center);
+            }
+        });
+        
+        // datalistを更新
+        this.updateCenterNameOptions();
+    }
+
+    // センター名オプションを更新
+    updateCenterNameOptions() {
+        const datalist = document.getElementById('center-names');
+        if (datalist) {
+            datalist.innerHTML = '';
+            this.centerNames.forEach(center => {
+                const option = document.createElement('option');
+                option.value = center;
+                datalist.appendChild(option);
+            });
         }
     }
 
@@ -369,6 +403,7 @@ class InventoryApp {
     setupInventoryListeners() {
         const startBtn = document.getElementById('start-camera');
         const stopBtn = document.getElementById('stop-camera');
+        const torchBtn = document.getElementById('torch-btn');
         const codeInput = document.getElementById('product-code');
         const quantityInput = document.getElementById('quantity');
         const registerBtn = document.getElementById('register-btn');
@@ -379,6 +414,10 @@ class InventoryApp {
         
         if (stopBtn) {
             stopBtn.addEventListener('click', () => this.stopQRScanner());
+        }
+
+        if (torchBtn) {
+            torchBtn.addEventListener('click', () => this.toggleTorch());
         }
 
         if (codeInput) {
@@ -405,6 +444,7 @@ class InventoryApp {
         const readerElement = document.getElementById('qr-reader');
         const startBtn = document.getElementById('start-camera');
         const stopBtn = document.getElementById('stop-camera');
+        const torchBtn = document.getElementById('torch-btn');
         const statusElement = document.getElementById('camera-status');
         
         if (!readerElement) return;
@@ -437,6 +477,7 @@ class InventoryApp {
                 this.isScanning = true;
                 if (startBtn) startBtn.classList.add('hidden');
                 if (stopBtn) stopBtn.classList.remove('hidden');
+                if (torchBtn) torchBtn.classList.remove('hidden');
                 if (statusElement) statusElement.textContent = 'QRコードをスキャンしてください';
             }).catch(err => {
                 console.error('QRスキャナー開始エラー:', err);
@@ -456,17 +497,53 @@ class InventoryApp {
                 this.qrScanner.clear();
                 this.qrScanner = null;
                 this.isScanning = false;
+                this.torchEnabled = false;
                 
                 const startBtn = document.getElementById('start-camera');
                 const stopBtn = document.getElementById('stop-camera');
+                const torchBtn = document.getElementById('torch-btn');
                 const statusElement = document.getElementById('camera-status');
                 
                 if (startBtn) startBtn.classList.remove('hidden');
                 if (stopBtn) stopBtn.classList.add('hidden');
+                if (torchBtn) torchBtn.classList.add('hidden');
                 if (statusElement) statusElement.textContent = 'カメラを開始してQRコードをスキャンしてください';
             }).catch(err => {
                 console.error('QRスキャナー停止エラー:', err);
             });
+        }
+    }
+
+    // トーチ（ライト）の切り替え
+    async toggleTorch() {
+        if (!this.qrScanner || !this.isScanning) return;
+        
+        try {
+            const capabilities = this.qrScanner.getRunningTrackCameraCapabilities();
+            if (capabilities.torchFeature && capabilities.torchFeature().isSupported()) {
+                this.torchEnabled = !this.torchEnabled;
+                await capabilities.torchFeature().apply(this.torchEnabled);
+                
+                const torchBtn = document.getElementById('torch-btn');
+                const torchIcon = document.getElementById('torch-icon');
+                
+                if (torchBtn && torchIcon) {
+                    if (this.torchEnabled) {
+                        torchBtn.classList.add('active');
+                        torchIcon.textContent = '💡';
+                        this.showMessage('ライトをオンにしました', 'success');
+                    } else {
+                        torchBtn.classList.remove('active');
+                        torchIcon.textContent = '🔦';
+                        this.showMessage('ライトをオフにしました', 'success');
+                    }
+                }
+            } else {
+                this.showMessage('このデバイスではライト機能がサポートされていません', 'warning');
+            }
+        } catch (error) {
+            console.error('トーチ制御エラー:', error);
+            this.showMessage('ライトの制御に失敗しました', 'error');
         }
     }
 
@@ -510,12 +587,15 @@ class InventoryApp {
     lookupProduct(code) {
         if (!code) {
             const productInfo = document.getElementById('product-info');
+            const manualProductInfo = document.getElementById('manual-product-info');
             if (productInfo) productInfo.classList.add('hidden');
+            if (manualProductInfo) manualProductInfo.classList.add('hidden');
             return;
         }
 
         const product = this.masterData.find(item => item.code === code);
         const productInfo = document.getElementById('product-info');
+        const manualProductInfo = document.getElementById('manual-product-info');
         
         if (product && productInfo) {
             const nameElement = document.getElementById('product-name');
@@ -525,10 +605,13 @@ class InventoryApp {
             if (descElement) descElement.textContent = product.description || '';
             
             productInfo.classList.remove('hidden');
-        } else if (productInfo) {
-            productInfo.classList.add('hidden');
-            if (code.length > 3) {
-                this.showMessage('商品マスタに登録されていません', 'warning');
+            if (manualProductInfo) manualProductInfo.classList.add('hidden');
+        } else {
+            if (productInfo) productInfo.classList.add('hidden');
+            if (manualProductInfo && code.length > 3) {
+                manualProductInfo.classList.remove('hidden');
+                const manualNameInput = document.getElementById('manual-product-name');
+                if (manualNameInput) manualNameInput.value = '';
             }
         }
     }
@@ -556,14 +639,64 @@ class InventoryApp {
         }
         
         const product = this.masterData.find(item => item.code === code);
+        
         if (!product) {
-            this.showMessage('商品マスタに登録されていない商品です', 'error');
+            // 商品が見つからない場合は確認ダイアログを表示
+            this.showUnknownProductDialog(code, quantity, unit, lot);
             return;
         }
         
+        await this.saveInventoryItem(code, product.name, quantity, unit, lot);
+    }
+
+    // 商品未登録確認ダイアログ表示
+    showUnknownProductDialog(code, quantity, unit, lot) {
+        const dialog = document.getElementById('unknown-product-dialog');
+        const messageElement = document.getElementById('unknown-product-message');
+        const okBtn = document.getElementById('unknown-product-ok');
+        const cancelBtn = document.getElementById('unknown-product-cancel');
+        
+        if (!dialog || !messageElement || !okBtn || !cancelBtn) return;
+        
+        messageElement.textContent = `商品マスタに「${code}」が見つかりません。コードのみで登録しますか？`;
+        
+        // 既存のイベントリスナーを削除
+        const newOkBtn = okBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        // 新しいイベントリスナーを追加
+        newOkBtn.addEventListener('click', async () => {
+            this.hideUnknownProductDialog();
+            
+            // 手動入力された商品名を取得
+            const manualNameInput = document.getElementById('manual-product-name');
+            const productName = manualNameInput ? manualNameInput.value.trim() : '';
+            
+            await this.saveInventoryItem(code, productName || '', quantity, unit, lot);
+        });
+        
+        newCancelBtn.addEventListener('click', () => {
+            this.hideUnknownProductDialog();
+        });
+        
+        dialog.classList.add('show');
+    }
+
+    // 商品未登録確認ダイアログ非表示
+    hideUnknownProductDialog() {
+        const dialog = document.getElementById('unknown-product-dialog');
+        if (dialog) {
+            dialog.classList.remove('show');
+        }
+    }
+
+    // 棚卸しアイテム保存
+    async saveInventoryItem(code, name, quantity, unit, lot) {
         const inventoryItem = {
             code: code,
-            name: product.name,
+            name: name,
             quantity: quantity,
             unit: unit,
             lot: lot || '',
@@ -584,7 +717,8 @@ class InventoryApp {
             
             this.inventoryData.push(inventoryItem);
             
-            this.showMessage(`${product.name} を登録しました`, 'success');
+            const displayName = name || 'コードのみ';
+            this.showMessage(`${displayName} を登録しました`, 'success');
             this.resetInventoryForm();
         } catch (error) {
             console.error('登録エラー:', error);
@@ -598,7 +732,8 @@ class InventoryApp {
             'product-code': '',
             'quantity': '1',
             'unit': '個',
-            'lot': ''
+            'lot': '',
+            'manual-product-name': ''
         };
         
         Object.entries(elements).forEach(([id, value]) => {
@@ -607,7 +742,9 @@ class InventoryApp {
         });
         
         const productInfo = document.getElementById('product-info');
+        const manualProductInfo = document.getElementById('manual-product-info');
         if (productInfo) productInfo.classList.add('hidden');
+        if (manualProductInfo) manualProductInfo.classList.add('hidden');
     }
 
     // データ取り込み機能のイベントリスナー
@@ -699,6 +836,7 @@ class InventoryApp {
                         this.masterData = parsedData;
                     } else {
                         this.stockData = parsedData;
+                        this.extractCenterNames(); // センター名を再抽出
                     }
                     
                     if (progressFill) progressFill.style.width = '100%';
@@ -936,10 +1074,12 @@ class InventoryApp {
         itemElement.className = 'inventory-item';
         itemElement.dataset.id = item.id;
         
+        const displayName = item.name || 'コードのみ';
+        
         itemElement.innerHTML = `
             <div class="inventory-item-header">
                 <div class="inventory-item-checkbox"></div>
-                <div class="inventory-item-name">${item.name}</div>
+                <div class="inventory-item-name">${displayName}</div>
             </div>
             <div class="inventory-item-details">
                 <div>コード: ${item.code}</div>
@@ -1075,8 +1215,6 @@ class InventoryApp {
     setupSettingsListeners() {
         const saveBtn = document.getElementById('save-settings-btn');
         const clearBtn = document.getElementById('clear-data-btn');
-        const centerSelect = document.getElementById('center-name');
-        const centerCustom = document.getElementById('center-name-custom');
 
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.saveSettings());
@@ -1085,18 +1223,13 @@ class InventoryApp {
         if (clearBtn) {
             clearBtn.addEventListener('click', () => this.confirmClearAllData());
         }
-
-        if (centerSelect && centerCustom) {
-            centerSelect.addEventListener('change', (e) => {
-                centerCustom.classList.toggle('hidden', e.target.value !== 'other');
-            });
-        }
     }
 
     // 設定の読み込み
     loadSettings() {
         const elements = {
             'user-name': this.settings.userName,
+            'center-name': this.settings.centerName,
             'code-type': this.settings.codeType,
             'output-format': this.settings.outputFormat
         };
@@ -1106,39 +1239,18 @@ class InventoryApp {
             if (element) element.value = value;
         });
         
-        const centerSelect = document.getElementById('center-name');
-        const centerCustom = document.getElementById('center-name-custom');
-        
-        if (centerSelect) {
-            const predefinedCenters = ['東京センター', '大阪センター', '名古屋センター'];
-            if (predefinedCenters.includes(this.settings.centerName)) {
-                centerSelect.value = this.settings.centerName;
-                if (centerCustom) centerCustom.classList.add('hidden');
-            } else {
-                centerSelect.value = 'other';
-                if (centerCustom) {
-                    centerCustom.value = this.settings.centerName;
-                    centerCustom.classList.remove('hidden');
-                }
-            }
-        }
+        // センター名オプションを更新
+        this.updateCenterNameOptions();
     }
 
     // 設定の保存
     async saveSettings() {
         const elements = {
             userName: document.getElementById('user-name')?.value || '',
+            centerName: document.getElementById('center-name')?.value || '東京倉庫',
             codeType: document.getElementById('code-type')?.value || 'QR',
             outputFormat: document.getElementById('output-format')?.value || 'CSV'
         };
-        
-        const centerSelect = document.getElementById('center-name');
-        const centerCustom = document.getElementById('center-name-custom');
-        
-        if (centerSelect) {
-            elements.centerName = centerSelect.value === 'other' && centerCustom ? 
-                centerCustom.value : centerSelect.value;
-        }
         
         this.settings = { ...this.settings, ...elements };
         
