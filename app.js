@@ -1,33 +1,28 @@
-// 棚卸しPWAアプリケーション - JavaScript
+// app.js - 棚卸し管理PWAアプリケーション - 完全実装版
 
 class InventoryApp {
     constructor() {
-        // データストレージ
-        this.inventoryData = JSON.parse(localStorage.getItem('inventoryData')) || [];
-        this.masterData = JSON.parse(localStorage.getItem('masterData')) || [
-            {"code": "4901234567890", "name": "サンプル商品A", "description": "商品Aの説明"},
-            {"code": "4901234567891", "name": "サンプル商品B", "description": "商品Bの説明"},
-            {"code": "4901234567892", "name": "サンプル商品C", "description": "商品Cの説明"}
-        ];
-        this.stockData = JSON.parse(localStorage.getItem('stockData')) || [
-            {"code": "4901234567890", "center": "東京センター", "warehouse": "A倉庫", "stock": 100},
-            {"code": "4901234567891", "center": "東京センター", "warehouse": "B倉庫", "stock": 50},
-            {"code": "4901234567892", "center": "大阪センター", "warehouse": "C倉庫", "stock": 75}
-        ];
-        this.settings = JSON.parse(localStorage.getItem('settings')) || {
-            "userName": "",
-            "centerName": "東京センター",
-            "codeType": "QR",
-            "outputFormat": "CSV",
-            "inputFormat": "XLSX"
+        // データベース設定
+        this.dbName = 'InventoryDB';
+        this.dbVersion = 1;
+        this.db = null;
+        
+        // アプリケーションデータ
+        this.inventoryData = [];
+        this.masterData = [];
+        this.stockData = [];
+        this.settings = {
+            userName: '',
+            centerName: '東京センター',
+            codeType: 'QR',
+            outputFormat: 'CSV'
         };
 
-        // カメラ関連
-        this.cameraStream = null;
+        // QRスキャナー関連
+        this.qrScanner = null;
         this.isScanning = false;
-        this.flashlight = false;
-
-        // UI要素
+        
+        // UI状態
         this.currentScreen = 'main-menu';
         this.selectedItems = new Set();
 
@@ -35,90 +30,309 @@ class InventoryApp {
         this.init();
     }
 
-    init() {
+    async init() {
         try {
-            this.setupEventListeners();
-            this.loadSettings();
-            this.registerServiceWorker();
+            // まずローディングを隠してUIを表示
             this.hideLoading();
+            
+            // バックグラウンドでデータベース初期化
+            await this.initDatabase();
+            await this.loadAllData();
+            this.setupEventListeners();
+            this.checkUrlParams();
+            
+            console.log('アプリケーション初期化完了');
         } catch (error) {
             console.error('初期化エラー:', error);
-            this.forceShowMainMenu();
+            // エラーが発生してもUIは表示する
+            this.hideLoading();
+            this.setupEventListeners();
+            this.showMessage('データベースの初期化に失敗しましたが、基本機能は利用できます', 'warning');
         }
-    }
-
-    // 強制的にメインメニューを表示
-    forceShowMainMenu() {
-        const loading = document.getElementById('loading');
-        if (loading) {
-            loading.style.display = 'none';
-        }
-        this.showScreen('main-menu');
     }
 
     // ローディング画面を非表示
     hideLoading() {
         setTimeout(() => {
-            try {
-                const loading = document.getElementById('loading');
-                if (loading) {
-                    loading.style.display = 'none';
-                }
-                this.showScreen('main-menu');
-            } catch (error) {
-                console.error('Loading hide error:', error);
-                this.forceShowMainMenu();
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
             }
-        }, 1000);
+            // メインメニューを確実に表示
+            this.showScreen('main-menu');
+        }, 500);
     }
 
-    // Service Worker登録
-    async registerServiceWorker() {
-        if ('serviceWorker' in navigator) {
+    // IndexedDB初期化
+    async initDatabase() {
+        return new Promise((resolve, reject) => {
             try {
-                // インラインService Worker
-                const swCode = `
-                const CACHE_NAME = 'inventory-app-v1';
-                const urlsToCache = [
-                    '/',
-                    '/index.html',
-                    '/style.css',
-                    '/app.js'
-                ];
-
-                self.addEventListener('install', event => {
-                    event.waitUntil(
-                        caches.open(CACHE_NAME)
-                            .then(cache => cache.addAll(urlsToCache))
-                    );
-                });
-
-                self.addEventListener('fetch', event => {
-                    event.respondWith(
-                        caches.match(event.request)
-                            .then(response => response || fetch(event.request))
-                    );
-                });
-                `;
+                const request = indexedDB.open(this.dbName, this.dbVersion);
                 
-                const blob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(blob);
-                await navigator.serviceWorker.register(swUrl);
-                console.log('Service Worker registered');
+                request.onerror = () => {
+                    console.error('IndexedDB open error:', request.error);
+                    resolve(); // エラーでも処理を続行
+                };
+                
+                request.onsuccess = () => {
+                    this.db = request.result;
+                    console.log('IndexedDB初期化成功');
+                    resolve();
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    
+                    try {
+                        // 棚卸しデータストア
+                        if (!db.objectStoreNames.contains('inventory')) {
+                            const inventoryStore = db.createObjectStore('inventory', { 
+                                keyPath: 'id', 
+                                autoIncrement: true 
+                            });
+                            inventoryStore.createIndex('code', 'code', { unique: false });
+                            inventoryStore.createIndex('timestamp', 'timestamp', { unique: false });
+                        }
+                        
+                        // 商品マスタストア
+                        if (!db.objectStoreNames.contains('master')) {
+                            const masterStore = db.createObjectStore('master', { 
+                                keyPath: 'code' 
+                            });
+                            masterStore.createIndex('name', 'name', { unique: false });
+                        }
+                        
+                        // 在庫データストア
+                        if (!db.objectStoreNames.contains('stock')) {
+                            const stockStore = db.createObjectStore('stock', { 
+                                keyPath: 'id', 
+                                autoIncrement: true 
+                            });
+                            stockStore.createIndex('code', 'code', { unique: false });
+                        }
+                        
+                        // 設定ストア
+                        if (!db.objectStoreNames.contains('settings')) {
+                            db.createObjectStore('settings', { keyPath: 'key' });
+                        }
+                    } catch (upgradeError) {
+                        console.error('Database upgrade error:', upgradeError);
+                    }
+                };
             } catch (error) {
-                console.log('Service Worker registration failed:', error);
+                console.error('IndexedDB initialization error:', error);
+                resolve(); // エラーでも処理を続行
             }
+        });
+    }
+
+    // 全データ読み込み
+    async loadAllData() {
+        try {
+            if (!this.db) {
+                // データベースが利用できない場合はサンプルデータを使用
+                this.initSampleDataMemory();
+                return;
+            }
+            
+            this.inventoryData = await this.getFromDB('inventory') || [];
+            this.masterData = await this.getFromDB('master') || [];
+            this.stockData = await this.getFromDB('stock') || [];
+            
+            const savedSettings = await this.getSettingFromDB('userSettings');
+            if (savedSettings) {
+                this.settings = { ...this.settings, ...savedSettings.value };
+            }
+            
+            // サンプルデータ（初回のみ）
+            if (this.masterData.length === 0) {
+                await this.initSampleData();
+            }
+        } catch (error) {
+            console.error('データ読み込みエラー:', error);
+            this.initSampleDataMemory();
+        }
+    }
+
+    // メモリ上でサンプルデータを初期化
+    initSampleDataMemory() {
+        this.masterData = [
+            { code: '4901234567890', name: 'サンプル商品A', description: '商品Aの説明' },
+            { code: '4901234567891', name: 'サンプル商品B', description: '商品Bの説明' },
+            { code: '4901234567892', name: 'サンプル商品C', description: '商品Cの説明' }
+        ];
+        
+        this.stockData = [
+            { code: '4901234567890', center: '東京センター', warehouse: 'A倉庫', stock: 100 },
+            { code: '4901234567891', center: '東京センター', warehouse: 'B倉庫', stock: 50 },
+            { code: '4901234567892', center: '大阪センター', warehouse: 'C倉庫', stock: 75 }
+        ];
+        
+        console.log('サンプルデータをメモリに読み込みました');
+    }
+
+    // サンプルデータ初期化
+    async initSampleData() {
+        const sampleMaster = [
+            { code: '4901234567890', name: 'サンプル商品A', description: '商品Aの説明' },
+            { code: '4901234567891', name: 'サンプル商品B', description: '商品Bの説明' },
+            { code: '4901234567892', name: 'サンプル商品C', description: '商品Cの説明' }
+        ];
+        
+        const sampleStock = [
+            { code: '4901234567890', center: '東京センター', warehouse: 'A倉庫', stock: 100 },
+            { code: '4901234567891', center: '東京センター', warehouse: 'B倉庫', stock: 50 },
+            { code: '4901234567892', center: '大阪センター', warehouse: 'C倉庫', stock: 75 }
+        ];
+        
+        try {
+            await this.saveToDB('master', sampleMaster);
+            await this.saveToDB('stock', sampleStock);
+            this.masterData = sampleMaster;
+            this.stockData = sampleStock;
+        } catch (error) {
+            console.error('サンプルデータ保存エラー:', error);
+            this.masterData = sampleMaster;
+            this.stockData = sampleStock;
+        }
+    }
+
+    // IndexedDBからデータ取得
+    async getFromDB(storeName) {
+        if (!this.db) return [];
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                
+                request.onerror = () => resolve([]);
+                request.onsuccess = () => resolve(request.result || []);
+            } catch (error) {
+                console.error('DB取得エラー:', error);
+                resolve([]);
+            }
+        });
+    }
+
+    // IndexedDBに配列データ保存
+    async saveToDB(storeName, dataArray) {
+        if (!this.db) return;
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                
+                // 既存データをクリア
+                store.clear();
+                
+                // 新しいデータを追加
+                dataArray.forEach(item => {
+                    store.add(item);
+                });
+                
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => resolve(); // エラーでも続行
+            } catch (error) {
+                console.error('DB保存エラー:', error);
+                resolve();
+            }
+        });
+    }
+
+    // 単一アイテムをDBに追加
+    async addToDB(storeName, item) {
+        if (!this.db) return null;
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.add(item);
+                
+                request.onerror = () => resolve(null);
+                request.onsuccess = () => resolve(request.result);
+            } catch (error) {
+                console.error('DB追加エラー:', error);
+                resolve(null);
+            }
+        });
+    }
+
+    // DBから削除
+    async deleteFromDB(storeName, key) {
+        if (!this.db) return;
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.delete(key);
+                
+                request.onerror = () => resolve();
+                request.onsuccess = () => resolve();
+            } catch (error) {
+                console.error('DB削除エラー:', error);
+                resolve();
+            }
+        });
+    }
+
+    // 設定をDBに保存
+    async saveSettingToDB(key, value) {
+        if (!this.db) return;
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction(['settings'], 'readwrite');
+                const store = transaction.objectStore('settings');
+                const request = store.put({ key, value });
+                
+                request.onerror = () => resolve();
+                request.onsuccess = () => resolve();
+            } catch (error) {
+                console.error('設定保存エラー:', error);
+                resolve();
+            }
+        });
+    }
+
+    // 設定をDBから取得
+    async getSettingFromDB(key) {
+        if (!this.db) return null;
+        
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction(['settings'], 'readonly');
+                const store = transaction.objectStore('settings');
+                const request = store.get(key);
+                
+                request.onerror = () => resolve(null);
+                request.onsuccess = () => resolve(request.result);
+            } catch (error) {
+                console.error('設定取得エラー:', error);
+                resolve(null);
+            }
+        });
+    }
+
+    // URLパラメータチェック
+    checkUrlParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const screen = urlParams.get('screen');
+        if (screen && ['inventory', 'import', 'export', 'edit', 'settings'].includes(screen)) {
+            this.showScreen(screen);
+        } else {
+            this.showScreen('main-menu');
         }
     }
 
     // イベントリスナー設定
     setupEventListeners() {
-        // DOM要素の存在確認
-        const mainBtns = document.querySelectorAll('.main-btn');
-        const backBtns = document.querySelectorAll('.back-btn');
-
         // メインメニューボタン
-        mainBtns.forEach(btn => {
+        document.querySelectorAll('.main-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const screen = e.currentTarget.dataset.screen;
                 this.showScreen(screen);
@@ -126,7 +340,7 @@ class InventoryApp {
         });
 
         // 戻るボタン
-        backBtns.forEach(btn => {
+        document.querySelectorAll('.back-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.showScreen('main-menu');
             });
@@ -134,39 +348,45 @@ class InventoryApp {
 
         // 棚卸し機能
         this.setupInventoryListeners();
-
+        
         // データ取り込み機能
         this.setupImportListeners();
-
+        
         // データ出力機能
         this.setupExportListeners();
-
+        
         // 編集機能
         this.setupEditListeners();
-
+        
         // 設定機能
         this.setupSettingsListeners();
+        
+        // 確認ダイアログ
+        this.setupDialogListeners();
     }
 
     // 棚卸し機能のイベントリスナー
     setupInventoryListeners() {
-        const startCameraBtn = document.getElementById('start-camera');
-        const toggleLightBtn = document.getElementById('toggle-light');
-        const productCodeInput = document.getElementById('product-code');
+        const startBtn = document.getElementById('start-camera');
+        const stopBtn = document.getElementById('stop-camera');
+        const codeInput = document.getElementById('product-code');
         const quantityInput = document.getElementById('quantity');
         const registerBtn = document.getElementById('register-btn');
 
-        if (startCameraBtn) {
-            startCameraBtn.addEventListener('click', () => this.startCamera());
+        if (startBtn) {
+            startBtn.addEventListener('click', () => this.startQRScanner());
         }
-        if (toggleLightBtn) {
-            toggleLightBtn.addEventListener('click', () => this.toggleFlashlight());
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', () => this.stopQRScanner());
         }
-        if (productCodeInput) {
-            productCodeInput.addEventListener('input', (e) => {
+
+        if (codeInput) {
+            codeInput.addEventListener('input', (e) => {
                 this.lookupProduct(e.target.value);
             });
         }
+
         if (quantityInput) {
             quantityInput.addEventListener('focus', (e) => {
                 if (e.target.value === '1') {
@@ -174,167 +394,95 @@ class InventoryApp {
                 }
             });
         }
+
         if (registerBtn) {
             registerBtn.addEventListener('click', () => this.registerInventoryItem());
         }
     }
 
-    // データ取り込み機能のイベントリスナー
-    setupImportListeners() {
-        const importBtn = document.getElementById('import-btn');
-        const importFile = document.getElementById('import-file');
+    // QRスキャナー開始
+    startQRScanner() {
+        const readerElement = document.getElementById('qr-reader');
+        const startBtn = document.getElementById('start-camera');
+        const stopBtn = document.getElementById('stop-camera');
+        const statusElement = document.getElementById('camera-status');
+        
+        if (!readerElement) return;
+        
+        // Html5Qrcodeが利用可能かチェック
+        if (typeof Html5Qrcode === 'undefined') {
+            this.showMessage('QRスキャナーライブラリが読み込まれていません', 'error');
+            return;
+        }
 
-        if (importBtn) {
-            importBtn.addEventListener('click', () => this.importData());
-        }
-        if (importFile) {
-            importFile.addEventListener('change', (e) => {
-                const fileName = e.target.files[0]?.name || '';
-                if (fileName && importBtn) {
-                    importBtn.textContent = `${fileName} を取り込み`;
-                }
-            });
-        }
-    }
-
-    // データ出力機能のイベントリスナー
-    setupExportListeners() {
-        const exportBtn = document.getElementById('export-btn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportData());
-        }
-        this.updateExportPreview();
-    }
-
-    // 編集機能のイベントリスナー
-    setupEditListeners() {
-        const searchInput = document.getElementById('search-input');
-        const selectAllBtn = document.getElementById('select-all-btn');
-        const deleteSelectedBtn = document.getElementById('delete-selected-btn');
-        const clearAllBtn = document.getElementById('clear-all-btn');
-
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.filterInventoryList(e.target.value);
-            });
-        }
-        if (selectAllBtn) {
-            selectAllBtn.addEventListener('click', () => this.selectAllItems());
-        }
-        if (deleteSelectedBtn) {
-            deleteSelectedBtn.addEventListener('click', () => this.deleteSelectedItems());
-        }
-        if (clearAllBtn) {
-            clearAllBtn.addEventListener('click', () => this.clearAllData());
-        }
-    }
-
-    // 設定機能のイベントリスナー
-    setupSettingsListeners() {
-        const saveSettingsBtn = document.getElementById('save-settings-btn');
-        const clearDataBtn = document.getElementById('clear-data-btn');
-        const centerNameSelect = document.getElementById('center-name');
-        const centerNameCustom = document.getElementById('center-name-custom');
-
-        if (saveSettingsBtn) {
-            saveSettingsBtn.addEventListener('click', () => this.saveSettings());
-        }
-        if (clearDataBtn) {
-            clearDataBtn.addEventListener('click', () => this.confirmClearAllData());
-        }
-        if (centerNameSelect && centerNameCustom) {
-            centerNameSelect.addEventListener('change', (e) => {
-                centerNameCustom.classList.toggle('hidden', e.target.value !== 'other');
-            });
-        }
-    }
-
-    // 画面切り替え
-    showScreen(screenId) {
         try {
-            const screens = document.querySelectorAll('.screen');
-            screens.forEach(screen => {
-                screen.classList.remove('active');
-            });
+            this.qrScanner = new Html5Qrcode('qr-reader');
             
-            const targetScreen = document.getElementById(screenId);
-            if (targetScreen) {
-                targetScreen.classList.add('active');
-                this.currentScreen = screenId;
-
-                // 画面固有の初期化処理
-                if (screenId === 'edit') {
-                    this.loadInventoryList();
-                } else if (screenId === 'export') {
-                    this.updateExportPreview();
-                } else if (screenId === 'settings') {
-                    this.loadSettings();
-                } else if (screenId === 'inventory') {
-                    this.resetInventoryForm();
-                }
-            }
-        } catch (error) {
-            console.error('Screen switching error:', error);
-        }
-    }
-
-    // カメラ開始
-    async startCamera() {
-        try {
-            const constraints = {
-                video: {
-                    facingMode: 'environment',
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                }
+            const config = {
+                fps: 10,
+                qrbox: { width: 200, height: 200 },
+                aspectRatio: 1.0
             };
 
-            this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const video = document.getElementById('camera-video');
-            if (video) {
-                video.srcObject = this.cameraStream;
-                video.classList.add('active');
+            this.qrScanner.start(
+                { facingMode: 'environment' },
+                config,
+                (decodedText) => {
+                    this.onQRCodeScanned(decodedText);
+                },
+                (errorMessage) => {
+                    // エラーメッセージは表示しない（継続的にスキャンするため）
+                }
+            ).then(() => {
+                this.isScanning = true;
+                if (startBtn) startBtn.classList.add('hidden');
+                if (stopBtn) stopBtn.classList.remove('hidden');
+                if (statusElement) statusElement.textContent = 'QRコードをスキャンしてください';
+            }).catch(err => {
+                console.error('QRスキャナー開始エラー:', err);
+                this.showMessage('カメラの起動に失敗しました。手動でコードを入力してください。', 'warning');
+                if (statusElement) statusElement.textContent = 'カメラアクセスエラー - 手動入力をご利用ください';
+            });
+        } catch (error) {
+            console.error('QRスキャナー初期化エラー:', error);
+            this.showMessage('QRスキャナーの初期化に失敗しました', 'error');
+        }
+    }
+
+    // QRスキャナー停止
+    stopQRScanner() {
+        if (this.qrScanner && this.isScanning) {
+            this.qrScanner.stop().then(() => {
+                this.qrScanner.clear();
+                this.qrScanner = null;
+                this.isScanning = false;
                 
                 const startBtn = document.getElementById('start-camera');
-                if (startBtn) {
-                    startBtn.style.display = 'none';
-                }
+                const stopBtn = document.getElementById('stop-camera');
+                const statusElement = document.getElementById('camera-status');
                 
-                this.isScanning = true;
-                this.startQRScanning(video);
-            }
-            
-        } catch (error) {
-            console.error('カメラアクセスエラー:', error);
-            this.showMessage('カメラにアクセスできません。手動でコードを入力してください。', 'error');
+                if (startBtn) startBtn.classList.remove('hidden');
+                if (stopBtn) stopBtn.classList.add('hidden');
+                if (statusElement) statusElement.textContent = 'カメラを開始してQRコードをスキャンしてください';
+            }).catch(err => {
+                console.error('QRスキャナー停止エラー:', err);
+            });
         }
     }
 
-    // QRコードスキャニング（シミュレーション）
-    startQRScanning(video) {
-        if (!this.isScanning) return;
-
-        // 実際のQRコード読み取りライブラリの代わりにシミュレーション
-        setTimeout(() => {
-            if (this.isScanning && Math.random() > 0.7) {
-                const sampleCodes = ['4901234567890', '4901234567891', '4901234567892'];
-                const randomCode = sampleCodes[Math.floor(Math.random() * sampleCodes.length)];
-                this.onCodeScanned(randomCode);
-            } else if (this.isScanning) {
-                this.startQRScanning(video);
-            }
-        }, 2000);
-    }
-
-    // コード読み取り成功時の処理
-    onCodeScanned(code) {
+    // QRコード読み取り成功時
+    onQRCodeScanned(decodedText) {
         this.playBeepSound();
-        const productCodeInput = document.getElementById('product-code');
-        if (productCodeInput) {
-            productCodeInput.value = code;
+        
+        const codeInput = document.getElementById('product-code');
+        if (codeInput) {
+            codeInput.value = decodedText;
         }
-        this.lookupProduct(code);
-        this.stopCamera();
+        
+        this.lookupProduct(decodedText);
+        this.stopQRScanner();
+        
+        this.showMessage('QRコードを読み取りました', 'success');
     }
 
     // ビープ音再生
@@ -354,49 +502,7 @@ class InventoryApp {
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.3);
         } catch (error) {
-            console.error('音声再生エラー:', error);
-        }
-    }
-
-    // カメラ停止
-    stopCamera() {
-        this.isScanning = false;
-        if (this.cameraStream) {
-            this.cameraStream.getTracks().forEach(track => track.stop());
-            this.cameraStream = null;
-        }
-        
-        const video = document.getElementById('camera-video');
-        const startBtn = document.getElementById('start-camera');
-        if (video) {
-            video.classList.remove('active');
-        }
-        if (startBtn) {
-            startBtn.style.display = 'block';
-        }
-    }
-
-    // フラッシュライト切り替え
-    async toggleFlashlight() {
-        if (!this.cameraStream) return;
-
-        try {
-            const track = this.cameraStream.getVideoTracks()[0];
-            const capabilities = track.getCapabilities();
-            
-            if (capabilities.torch) {
-                this.flashlight = !this.flashlight;
-                await track.applyConstraints({
-                    advanced: [{ torch: this.flashlight }]
-                });
-                
-                const btn = document.getElementById('toggle-light');
-                if (btn) {
-                    btn.textContent = this.flashlight ? '💡 ライトOFF' : '💡 ライト';
-                }
-            }
-        } catch (error) {
-            console.error('フラッシュライトエラー:', error);
+            console.error('ビープ音再生エラー:', error);
         }
     }
 
@@ -404,9 +510,7 @@ class InventoryApp {
     lookupProduct(code) {
         if (!code) {
             const productInfo = document.getElementById('product-info');
-            if (productInfo) {
-                productInfo.classList.add('hidden');
-            }
+            if (productInfo) productInfo.classList.add('hidden');
             return;
         }
 
@@ -414,91 +518,78 @@ class InventoryApp {
         const productInfo = document.getElementById('product-info');
         
         if (product && productInfo) {
-            const productName = document.getElementById('product-name');
-            const productDescription = document.getElementById('product-description');
+            const nameElement = document.getElementById('product-name');
+            const descElement = document.getElementById('product-description');
             
-            if (productName) {
-                productName.textContent = product.name;
-            }
-            if (productDescription) {
-                productDescription.textContent = product.description || '';
-            }
+            if (nameElement) nameElement.textContent = product.name;
+            if (descElement) descElement.textContent = product.description || '';
+            
             productInfo.classList.remove('hidden');
-            
-            // ロット情報を更新
-            this.updateLotOptions(code);
         } else if (productInfo) {
             productInfo.classList.add('hidden');
-            this.showMessage('商品が見つかりません', 'warning');
+            if (code.length > 3) {
+                this.showMessage('商品マスタに登録されていません', 'warning');
+            }
         }
-    }
-
-    // ロットオプション更新
-    updateLotOptions(code) {
-        const lotSelect = document.getElementById('lot');
-        if (!lotSelect) return;
-        
-        lotSelect.innerHTML = '<option value="">ロットを選択</option>';
-        
-        const stockItems = this.stockData.filter(item => item.code === code);
-        stockItems.forEach(item => {
-            const option = document.createElement('option');
-            option.value = `${item.warehouse}-${item.stock}`;
-            option.textContent = `${item.warehouse} (在庫: ${item.stock})`;
-            lotSelect.appendChild(option);
-        });
-        
-        // 手動入力オプション
-        const manualOption = document.createElement('option');
-        manualOption.value = 'manual';
-        manualOption.textContent = '手動入力';
-        lotSelect.appendChild(manualOption);
     }
 
     // 棚卸しアイテム登録
-    registerInventoryItem() {
+    async registerInventoryItem() {
         const codeInput = document.getElementById('product-code');
         const quantityInput = document.getElementById('quantity');
         const unitSelect = document.getElementById('unit');
-        const lotSelect = document.getElementById('lot');
-
-        if (!codeInput || !quantityInput || !unitSelect || !lotSelect) {
+        const lotInput = document.getElementById('lot');
+        
+        if (!codeInput || !quantityInput || !unitSelect) {
             this.showMessage('入力フィールドが見つかりません', 'error');
             return;
         }
-
+        
         const code = codeInput.value.trim();
         const quantity = parseInt(quantityInput.value);
         const unit = unitSelect.value;
-        const lot = lotSelect.value;
-
+        const lot = lotInput ? lotInput.value.trim() : '';
+        
         if (!code || !quantity || quantity < 1) {
             this.showMessage('コードと数量を正しく入力してください', 'error');
             return;
         }
-
+        
         const product = this.masterData.find(item => item.code === code);
         if (!product) {
             this.showMessage('商品マスタに登録されていない商品です', 'error');
             return;
         }
-
+        
         const inventoryItem = {
-            id: Date.now(),
             code: code,
             name: product.name,
             quantity: quantity,
             unit: unit,
-            lot: lot,
+            lot: lot || '',
             timestamp: new Date().toISOString(),
-            user: this.settings.userName || '未設定'
+            user: this.settings.userName || '未設定',
+            center: this.settings.centerName
         };
-
-        this.inventoryData.push(inventoryItem);
-        this.saveData();
         
-        this.showMessage(`${product.name} を登録しました`, 'success');
-        this.resetInventoryForm();
+        try {
+            // DBに保存を試行
+            const id = await this.addToDB('inventory', inventoryItem);
+            if (id) {
+                inventoryItem.id = id;
+            } else {
+                // DBに保存できない場合は一意IDを生成
+                inventoryItem.id = Date.now() + Math.random();
+            }
+            
+            this.inventoryData.push(inventoryItem);
+            
+            this.showMessage(`${product.name} を登録しました`, 'success');
+            this.resetInventoryForm();
+        } catch (error) {
+            console.error('登録エラー:', error);
+            this.showMessage('登録に失敗しました', 'error');
+        }
     }
 
     // 棚卸しフォームリセット
@@ -509,19 +600,33 @@ class InventoryApp {
             'unit': '個',
             'lot': ''
         };
-
+        
         Object.entries(elements).forEach(([id, value]) => {
             const element = document.getElementById(id);
-            if (element) {
-                element.value = value;
-            }
+            if (element) element.value = value;
         });
-
+        
         const productInfo = document.getElementById('product-info');
-        if (productInfo) {
-            productInfo.classList.add('hidden');
+        if (productInfo) productInfo.classList.add('hidden');
+    }
+
+    // データ取り込み機能のイベントリスナー
+    setupImportListeners() {
+        const importBtn = document.getElementById('import-btn');
+        const importFile = document.getElementById('import-file');
+
+        if (importBtn) {
+            importBtn.addEventListener('click', () => this.importData());
         }
-        this.stopCamera();
+
+        if (importFile) {
+            importFile.addEventListener('change', (e) => {
+                const fileName = e.target.files[0]?.name || '';
+                if (fileName && importBtn) {
+                    importBtn.textContent = `📥 ${fileName} を取り込み`;
+                }
+            });
+        }
     }
 
     // データ取り込み
@@ -533,94 +638,118 @@ class InventoryApp {
             this.showMessage('必要な要素が見つかりません', 'error');
             return;
         }
-
+        
         const file = fileInput.files[0];
         if (!file) {
             this.showMessage('ファイルを選択してください', 'error');
             return;
         }
-
+        
+        // XLSXライブラリが利用可能かチェック
+        if (typeof XLSX === 'undefined') {
+            this.showMessage('Excelライブラリが読み込まれていません', 'error');
+            return;
+        }
+        
         const progressSection = document.getElementById('import-progress');
         const progressFill = progressSection?.querySelector('.progress-fill');
         const progressText = progressSection?.querySelector('.progress-text');
-
-        if (progressSection) {
-            progressSection.classList.remove('hidden');
-        }
-        if (progressFill) {
-            progressFill.style.width = '0%';
-        }
-        if (progressText) {
-            progressText.textContent = 'ファイルを読み込み中...';
-        }
-
+        
+        if (progressSection) progressSection.classList.remove('hidden');
+        if (progressFill) progressFill.style.width = '10%';
+        if (progressText) progressText.textContent = 'ファイルを読み込み中...';
+        
         try {
-            // ファイル読み込みシミュレーション
-            await this.simulateProgress(progressFill, progressText);
+            const reader = new FileReader();
             
-            const text = await file.text();
-            let data;
-
-            if (file.name.endsWith('.csv')) {
-                data = this.parseCSV(text);
+            reader.onload = async (e) => {
+                try {
+                    if (progressFill) progressFill.style.width = '50%';
+                    if (progressText) progressText.textContent = 'データ処理中...';
+                    
+                    let parsedData = [];
+                    
+                    if (file.name.toLowerCase().endsWith('.csv')) {
+                        const csvText = e.target.result;
+                        parsedData = this.parseCSV(csvText);
+                    } else {
+                        const workbook = XLSX.read(e.target.result, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        
+                        if (rawData.length > 1) {
+                            const headers = rawData[0];
+                            parsedData = rawData.slice(1).map(row => {
+                                const obj = {};
+                                headers.forEach((header, i) => {
+                                    obj[header] = row[i] || '';
+                                });
+                                return obj;
+                            }).filter(row => Object.values(row).some(val => val !== ''));
+                        }
+                    }
+                    
+                    if (progressFill) progressFill.style.width = '80%';
+                    if (progressText) progressText.textContent = 'データベースに保存中...';
+                    
+                    const storeName = importType.value === 'master' ? 'master' : 'stock';
+                    await this.saveToDB(storeName, parsedData);
+                    
+                    if (importType.value === 'master') {
+                        this.masterData = parsedData;
+                    } else {
+                        this.stockData = parsedData;
+                    }
+                    
+                    if (progressFill) progressFill.style.width = '100%';
+                    if (progressText) progressText.textContent = '完了!';
+                    
+                    setTimeout(() => {
+                        if (progressSection) progressSection.classList.add('hidden');
+                    }, 1000);
+                    
+                    this.showMessage(`${parsedData.length}件のデータを取り込みました`, 'success');
+                    fileInput.value = '';
+                    
+                } catch (err) {
+                    console.error('データ処理エラー:', err);
+                    this.showMessage('ファイル形式が正しくないか、処理中にエラーが発生しました', 'error');
+                    if (progressSection) progressSection.classList.add('hidden');
+                }
+            };
+            
+            reader.onerror = () => {
+                this.showMessage('ファイルの読み込みに失敗しました', 'error');
+                if (progressSection) progressSection.classList.add('hidden');
+            };
+            
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                reader.readAsText(file, 'UTF-8');
             } else {
-                // Excel読み込みは実際にはSheetJSライブラリを使用
-                data = this.parseExcel(text);
+                reader.readAsArrayBuffer(file);
             }
-
-            if (importType.value === 'master') {
-                this.masterData = data;
-            } else {
-                this.stockData = data;
-            }
-
-            this.saveData();
-            this.showMessage('データの取り込みが完了しました', 'success');
             
         } catch (error) {
             console.error('インポートエラー:', error);
-            this.showMessage('ファイルの読み込みに失敗しました', 'error');
-        } finally {
-            if (progressSection) {
-                progressSection.classList.add('hidden');
-            }
-            fileInput.value = '';
+            this.showMessage('ファイルの処理中にエラーが発生しました', 'error');
+            if (progressSection) progressSection.classList.add('hidden');
         }
-    }
-
-    // 進捗シミュレーション
-    simulateProgress(progressFill, progressText) {
-        return new Promise(resolve => {
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 20;
-                if (progress >= 100) {
-                    progress = 100;
-                    clearInterval(interval);
-                    resolve();
-                }
-                if (progressFill) {
-                    progressFill.style.width = `${progress}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `処理中... ${Math.round(progress)}%`;
-                }
-            }, 200);
-        });
     }
 
     // CSV解析
     parseCSV(text) {
-        const lines = text.split('\n');
-        const headers = lines[0].split(',');
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) return [];
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         const data = [];
         
         for (let i = 1; i < lines.length; i++) {
-            if (lines[i].trim()) {
-                const values = lines[i].split(',');
+            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            if (values.some(v => v !== '')) {
                 const item = {};
                 headers.forEach((header, index) => {
-                    item[header.trim()] = values[index]?.trim() || '';
+                    item[header] = values[index] || '';
                 });
                 data.push(item);
             }
@@ -629,19 +758,23 @@ class InventoryApp {
         return data;
     }
 
-    // Excel解析（簡易版）
-    parseExcel(text) {
-        // 実際の実装ではSheetJSライブラリを使用
-        console.log('Excel parsing would use SheetJS library');
-        return [];
+    // データ出力機能のイベントリスナー
+    setupExportListeners() {
+        const exportBtn = document.getElementById('export-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportData());
+        }
     }
 
     // データ出力プレビュー更新
     updateExportPreview() {
         const inventoryCount = document.getElementById('inventory-count');
-        if (inventoryCount) {
-            inventoryCount.textContent = `${this.inventoryData.length}件`;
-        }
+        const masterCount = document.getElementById('master-count');
+        const stockCount = document.getElementById('stock-count');
+        
+        if (inventoryCount) inventoryCount.textContent = `${this.inventoryData.length}件`;
+        if (masterCount) masterCount.textContent = `${this.masterData.length}件`;
+        if (stockCount) stockCount.textContent = `${this.stockData.length}件`;
     }
 
     // データ出力
@@ -651,14 +784,14 @@ class InventoryApp {
             this.showMessage('出力形式選択が見つかりません', 'error');
             return;
         }
-
+        
         const format = formatSelect.value;
         
         if (this.inventoryData.length === 0) {
             this.showMessage('出力するデータがありません', 'warning');
             return;
         }
-
+        
         try {
             if (format === 'csv') {
                 this.exportCSV();
@@ -673,37 +806,70 @@ class InventoryApp {
 
     // CSV出力
     exportCSV() {
-        const headers = ['ID', 'コード', '商品名', '数量', '単位', 'ロット', '登録日時', '登録者'];
+        const headers = ['ID', 'コード', '商品名', '数量', '単位', 'ロット', '登録日時', '登録者', 'センター'];
+        
         const rows = this.inventoryData.map(item => [
-            item.id,
+            item.id || '',
             item.code,
             item.name,
             item.quantity,
             item.unit,
             item.lot,
             new Date(item.timestamp).toLocaleString('ja-JP'),
-            item.user
+            item.user,
+            item.center || this.settings.centerName
         ]);
-
+        
         const csvContent = [headers, ...rows]
             .map(row => row.map(field => `"${field}"`).join(','))
             .join('\n');
-
-        this.downloadFile(csvContent, '棚卸しデータ.csv', 'text/csv');
+            
+        this.downloadFile(csvContent, '棚卸しデータ.csv', 'text/csv;charset=utf-8;');
     }
 
-    // Excel出力（簡易版）
+    // Excel出力
     exportExcel() {
-        // 実際の実装ではSheetJSライブラリを使用
-        const csvContent = this.generateCSVContent();
-        this.downloadFile(csvContent, '棚卸しデータ.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        // XLSXライブラリが利用可能かチェック
+        if (typeof XLSX === 'undefined') {
+            this.showMessage('Excelライブラリが読み込まれていません', 'error');
+            return;
+        }
+        
+        try {
+            const headers = ['ID', 'コード', '商品名', '数量', '単位', 'ロット', '登録日時', '登録者', 'センター'];
+            
+            const rows = this.inventoryData.map(item => [
+                item.id || '',
+                item.code,
+                item.name,
+                item.quantity,
+                item.unit,
+                item.lot,
+                new Date(item.timestamp).toLocaleString('ja-JP'),
+                item.user,
+                item.center || this.settings.centerName
+            ]);
+            
+            const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "棚卸しデータ");
+            
+            XLSX.writeFile(workbook, '棚卸しデータ.xlsx');
+            
+            this.showMessage('Excelファイルをダウンロードしました', 'success');
+        } catch (error) {
+            console.error('Excel出力エラー:', error);
+            this.showMessage('Excelファイルの作成に失敗しました', 'error');
+        }
     }
 
-    // ファイルダウンロード
+    // ファイルダウンロード（CSV用）
     downloadFile(content, filename, mimeType) {
-        const blob = new Blob([content], { type: mimeType });
+        const BOM = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+        const blob = new Blob([BOM + content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
+        
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
@@ -714,23 +880,30 @@ class InventoryApp {
         this.showMessage('ファイルをダウンロードしました', 'success');
     }
 
-    // CSV内容生成
-    generateCSVContent() {
-        const headers = ['ID', 'コード', '商品名', '数量', '単位', 'ロット', '登録日時', '登録者'];
-        const rows = this.inventoryData.map(item => [
-            item.id,
-            item.code,
-            item.name,
-            item.quantity,
-            item.unit,
-            item.lot,
-            new Date(item.timestamp).toLocaleString('ja-JP'),
-            item.user
-        ]);
+    // 編集機能のイベントリスナー
+    setupEditListeners() {
+        const searchInput = document.getElementById('search-input');
+        const selectAllBtn = document.getElementById('select-all-btn');
+        const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
 
-        return [headers, ...rows]
-            .map(row => row.map(field => `"${field}"`).join(','))
-            .join('\n');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.filterInventoryList(e.target.value);
+            });
+        }
+
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => this.selectAllItems());
+        }
+
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.addEventListener('click', () => this.deleteSelectedItems());
+        }
+
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', () => this.confirmClearAllData());
+        }
     }
 
     // 在庫リスト読み込み
@@ -738,210 +911,344 @@ class InventoryApp {
         const listContainer = document.getElementById('inventory-list');
         if (!listContainer) return;
         
+        this.selectedItems.clear();
+        
         if (this.inventoryData.length === 0) {
             listContainer.innerHTML = `
                 <div class="no-data">
-                    <div class="no-data-icon">📦</div>
+                    <div class="no-data-icon">📋</div>
                     <p>棚卸しデータがありません</p>
                 </div>
             `;
             return;
         }
-
-        const itemsHtml = this.inventoryData.map(item => `
-            <div class="inventory-item" data-id="${item.id}">
-                <div class="inventory-item-header">
-                    <div class="inventory-item-checkbox" onclick="app.toggleItemSelection(${item.id})"></div>
-                    <div class="inventory-item-name">${item.name}</div>
-                </div>
-                <div class="inventory-item-details">
-                    <div>コード: ${item.code}</div>
-                    <div>数量: ${item.quantity}${item.unit}</div>
-                    <div>ロット: ${item.lot || '未設定'}</div>
-                    <div>登録: ${new Date(item.timestamp).toLocaleDateString('ja-JP')}</div>
-                </div>
-                <div class="inventory-item-actions">
-                    <button class="btn btn--secondary" onclick="app.editItem(${item.id})">編集</button>
-                    <button class="btn btn--outline" onclick="app.deleteItem(${item.id})">削除</button>
-                </div>
-            </div>
-        `).join('');
-
-        listContainer.innerHTML = itemsHtml;
+        
+        listContainer.innerHTML = '';
+        this.inventoryData.forEach((item, index) => {
+            const itemElement = this.createInventoryListItem(item, index);
+            listContainer.appendChild(itemElement);
+        });
     }
 
-    // アイテム選択切り替え
-    toggleItemSelection(id) {
-        const checkbox = document.querySelector(`[data-id="${id}"] .inventory-item-checkbox`);
-        const item = document.querySelector(`[data-id="${id}"]`);
+    // 在庫リストアイテム作成
+    createInventoryListItem(item, index) {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'inventory-item';
+        itemElement.dataset.id = item.id;
         
-        if (!checkbox || !item) return;
+        itemElement.innerHTML = `
+            <div class="inventory-item-header">
+                <div class="inventory-item-checkbox"></div>
+                <div class="inventory-item-name">${item.name}</div>
+            </div>
+            <div class="inventory-item-details">
+                <div>コード: ${item.code}</div>
+                <div>数量: ${item.quantity}${item.unit}</div>
+                <div>ロット: ${item.lot || '未設定'}</div>
+                <div>日時: ${new Date(item.timestamp).toLocaleString('ja-JP')}</div>
+            </div>
+            <div class="inventory-item-actions">
+                <button class="btn btn--outline btn--sm delete-btn">削除</button>
+            </div>
+        `;
         
-        if (this.selectedItems.has(id)) {
-            this.selectedItems.delete(id);
-            checkbox.classList.remove('checked');
-            item.classList.remove('selected');
-        } else {
-            this.selectedItems.add(id);
-            checkbox.classList.add('checked');
-            item.classList.add('selected');
+        // チェックボックス処理
+        const checkbox = itemElement.querySelector('.inventory-item-checkbox');
+        if (checkbox) {
+            checkbox.addEventListener('click', () => {
+                const itemId = item.id;
+                if (this.selectedItems.has(itemId)) {
+                    this.selectedItems.delete(itemId);
+                    checkbox.classList.remove('checked');
+                    itemElement.classList.remove('selected');
+                } else {
+                    this.selectedItems.add(itemId);
+                    checkbox.classList.add('checked');
+                    itemElement.classList.add('selected');
+                }
+            });
         }
+        
+        // 削除ボタン
+        const deleteBtn = itemElement.querySelector('.delete-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                this.deleteInventoryItem(item.id);
+            });
+        }
+        
+        return itemElement;
+    }
+
+    // 在庫アイテム削除
+    async deleteInventoryItem(id) {
+        try {
+            await this.deleteFromDB('inventory', id);
+            this.inventoryData = this.inventoryData.filter(item => item.id !== id);
+            this.loadInventoryList();
+            this.showMessage('項目を削除しました', 'success');
+        } catch (error) {
+            console.error('削除エラー:', error);
+            this.showMessage('削除に失敗しました', 'error');
+        }
+    }
+
+    // 在庫リスト検索フィルター
+    filterInventoryList(query) {
+        const items = document.querySelectorAll('.inventory-item');
+        
+        if (!query) {
+            items.forEach(item => item.style.display = 'block');
+            return;
+        }
+        
+        query = query.toLowerCase();
+        
+        items.forEach(item => {
+            const name = item.querySelector('.inventory-item-name').textContent.toLowerCase();
+            const details = item.querySelector('.inventory-item-details').textContent.toLowerCase();
+            
+            if (name.includes(query) || details.includes(query)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
     }
 
     // 全選択
     selectAllItems() {
         const items = document.querySelectorAll('.inventory-item');
-        items.forEach(item => {
-            const id = parseInt(item.dataset.id);
-            this.selectedItems.add(id);
-            const checkbox = item.querySelector('.inventory-item-checkbox');
-            if (checkbox) {
-                checkbox.classList.add('checked');
-            }
-            item.classList.add('selected');
-        });
-    }
-
-    // リストフィルタリング
-    filterInventoryList(query) {
-        const items = document.querySelectorAll('.inventory-item');
-        items.forEach(item => {
-            const nameElement = item.querySelector('.inventory-item-name');
-            if (nameElement) {
-                const name = nameElement.textContent;
-                const visible = name.toLowerCase().includes(query.toLowerCase());
-                item.style.display = visible ? 'block' : 'none';
-            }
-        });
+        const allSelected = this.inventoryData.length === this.selectedItems.size;
+        
+        if (allSelected) {
+            this.selectedItems.clear();
+            items.forEach(item => {
+                item.classList.remove('selected');
+                const checkbox = item.querySelector('.inventory-item-checkbox');
+                if (checkbox) checkbox.classList.remove('checked');
+            });
+        } else {
+            this.inventoryData.forEach(item => {
+                this.selectedItems.add(item.id);
+            });
+            
+            items.forEach(item => {
+                item.classList.add('selected');
+                const checkbox = item.querySelector('.inventory-item-checkbox');
+                if (checkbox) checkbox.classList.add('checked');
+            });
+        }
     }
 
     // 選択アイテム削除
     deleteSelectedItems() {
         if (this.selectedItems.size === 0) {
-            this.showMessage('削除するアイテムを選択してください', 'warning');
+            this.showMessage('削除する項目が選択されていません', 'warning');
             return;
         }
-
-        this.showConfirm(
-            '選択アイテムの削除',
-            `選択した${this.selectedItems.size}件のアイテムを削除しますか？`,
-            () => {
-                this.inventoryData = this.inventoryData.filter(item => !this.selectedItems.has(item.id));
-                this.selectedItems.clear();
-                this.saveData();
-                this.loadInventoryList();
-                this.showMessage('選択したアイテムを削除しました', 'success');
+        
+        this.showConfirmDialog(
+            `${this.selectedItems.size}件の項目を削除しますか？`,
+            async () => {
+                try {
+                    for (const id of this.selectedItems) {
+                        await this.deleteFromDB('inventory', id);
+                    }
+                    
+                    this.inventoryData = this.inventoryData.filter(
+                        item => !this.selectedItems.has(item.id)
+                    );
+                    
+                    this.selectedItems.clear();
+                    this.loadInventoryList();
+                    this.showMessage('選択した項目を削除しました', 'success');
+                } catch (error) {
+                    console.error('一括削除エラー:', error);
+                    this.showMessage('削除に失敗しました', 'error');
+                }
             }
         );
     }
 
-    // 単一アイテム削除
-    deleteItem(id) {
-        this.showConfirm(
-            'アイテムの削除',
-            'このアイテムを削除しますか？',
-            () => {
-                this.inventoryData = this.inventoryData.filter(item => item.id !== id);
-                this.saveData();
-                this.loadInventoryList();
-                this.showMessage('アイテムを削除しました', 'success');
-            }
-        );
-    }
+    // 設定機能のイベントリスナー
+    setupSettingsListeners() {
+        const saveBtn = document.getElementById('save-settings-btn');
+        const clearBtn = document.getElementById('clear-data-btn');
+        const centerSelect = document.getElementById('center-name');
+        const centerCustom = document.getElementById('center-name-custom');
 
-    // アイテム編集（簡易版）
-    editItem(id) {
-        const item = this.inventoryData.find(item => item.id === id);
-        if (!item) return;
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => this.saveSettings());
+        }
 
-        const newQuantity = prompt('新しい数量を入力してください:', item.quantity);
-        if (newQuantity && !isNaN(newQuantity) && parseInt(newQuantity) > 0) {
-            item.quantity = parseInt(newQuantity);
-            item.timestamp = new Date().toISOString();
-            this.saveData();
-            this.loadInventoryList();
-            this.showMessage('アイテムを更新しました', 'success');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.confirmClearAllData());
+        }
+
+        if (centerSelect && centerCustom) {
+            centerSelect.addEventListener('change', (e) => {
+                centerCustom.classList.toggle('hidden', e.target.value !== 'other');
+            });
         }
     }
 
-    // 全データクリア確認
+    // 設定の読み込み
+    loadSettings() {
+        const elements = {
+            'user-name': this.settings.userName,
+            'code-type': this.settings.codeType,
+            'output-format': this.settings.outputFormat
+        };
+        
+        Object.entries(elements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) element.value = value;
+        });
+        
+        const centerSelect = document.getElementById('center-name');
+        const centerCustom = document.getElementById('center-name-custom');
+        
+        if (centerSelect) {
+            const predefinedCenters = ['東京センター', '大阪センター', '名古屋センター'];
+            if (predefinedCenters.includes(this.settings.centerName)) {
+                centerSelect.value = this.settings.centerName;
+                if (centerCustom) centerCustom.classList.add('hidden');
+            } else {
+                centerSelect.value = 'other';
+                if (centerCustom) {
+                    centerCustom.value = this.settings.centerName;
+                    centerCustom.classList.remove('hidden');
+                }
+            }
+        }
+    }
+
+    // 設定の保存
+    async saveSettings() {
+        const elements = {
+            userName: document.getElementById('user-name')?.value || '',
+            codeType: document.getElementById('code-type')?.value || 'QR',
+            outputFormat: document.getElementById('output-format')?.value || 'CSV'
+        };
+        
+        const centerSelect = document.getElementById('center-name');
+        const centerCustom = document.getElementById('center-name-custom');
+        
+        if (centerSelect) {
+            elements.centerName = centerSelect.value === 'other' && centerCustom ? 
+                centerCustom.value : centerSelect.value;
+        }
+        
+        this.settings = { ...this.settings, ...elements };
+        
+        try {
+            await this.saveSettingToDB('userSettings', this.settings);
+            this.showMessage('設定を保存しました', 'success');
+        } catch (error) {
+            console.error('設定保存エラー:', error);
+            this.showMessage('設定の保存に失敗しました', 'error');
+        }
+    }
+
+    // 全データ削除確認
     confirmClearAllData() {
-        this.showConfirm(
-            'データオールクリア',
-            '全ての棚卸しデータを削除しますか？この操作は取り消せません。',
+        this.showConfirmDialog(
+            'すべてのデータを削除しますか？この操作は元に戻せません。',
             () => this.clearAllData()
         );
     }
 
-    // 全データクリア
-    clearAllData() {
-        this.inventoryData = [];
-        this.selectedItems.clear();
-        this.saveData();
-        this.loadInventoryList();
-        this.showMessage('全データを削除しました', 'success');
+    // 全データ削除
+    async clearAllData() {
+        try {
+            await this.saveToDB('inventory', []);
+            this.inventoryData = [];
+            
+            this.showMessage('全データを削除しました', 'success');
+            
+            if (this.currentScreen === 'edit') {
+                this.loadInventoryList();
+            } else if (this.currentScreen === 'export') {
+                this.updateExportPreview();
+            }
+        } catch (error) {
+            console.error('データ削除エラー:', error);
+            this.showMessage('データの削除に失敗しました', 'error');
+        }
     }
 
-    // 設定読み込み
-    loadSettings() {
-        const elements = {
-            'user-name': this.settings.userName,
-            'center-name': this.settings.centerName,
-            'code-type': this.settings.codeType,
-            'output-format': this.settings.outputFormat,
-            'input-format': this.settings.inputFormat
-        };
+    // ダイアログのイベントリスナー
+    setupDialogListeners() {
+        const cancelBtn = document.getElementById('confirm-cancel');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                this.hideConfirmDialog();
+            });
+        }
+    }
 
-        Object.entries(elements).forEach(([id, value]) => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.value = value;
-            }
+    // 確認ダイアログ表示
+    showConfirmDialog(message, onConfirm) {
+        const dialog = document.getElementById('confirm-dialog');
+        const messageElement = document.getElementById('confirm-message');
+        const okBtn = document.getElementById('confirm-ok');
+        
+        if (!dialog || !messageElement || !okBtn) return;
+        
+        messageElement.textContent = message;
+        
+        // 既存のイベントリスナーを削除
+        const newOkBtn = okBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+        
+        // 新しいイベントリスナーを追加
+        newOkBtn.addEventListener('click', () => {
+            this.hideConfirmDialog();
+            if (onConfirm) onConfirm();
         });
         
-        const centerNameCustom = document.getElementById('center-name-custom');
-        const centerNameSelect = document.getElementById('center-name');
+        dialog.classList.add('show');
+    }
+
+    // 確認ダイアログ非表示
+    hideConfirmDialog() {
+        const dialog = document.getElementById('confirm-dialog');
+        if (dialog) {
+            dialog.classList.remove('show');
+        }
+    }
+
+    // 画面切り替え
+    showScreen(screenId) {
+        // QRスキャナーを停止
+        if (this.isScanning && screenId !== 'inventory') {
+            this.stopQRScanner();
+        }
         
-        if (centerNameCustom && centerNameSelect) {
-            if (!['東京センター', '大阪センター', '名古屋センター'].includes(this.settings.centerName)) {
-                centerNameSelect.value = 'other';
-                centerNameCustom.value = this.settings.centerName;
-                centerNameCustom.classList.remove('hidden');
+        const screens = document.querySelectorAll('.screen');
+        screens.forEach(screen => screen.classList.remove('active'));
+
+        const targetScreen = document.getElementById(screenId);
+        if (targetScreen) {
+            targetScreen.classList.add('active');
+            this.currentScreen = screenId;
+
+            // 画面固有の初期化処理
+            switch (screenId) {
+                case 'edit':
+                    this.loadInventoryList();
+                    break;
+                case 'export':
+                    this.updateExportPreview();
+                    break;
+                case 'settings':
+                    this.loadSettings();
+                    break;
+                case 'inventory':
+                    this.resetInventoryForm();
+                    break;
             }
-        }
-    }
-
-    // 設定保存
-    saveSettings() {
-        const centerNameSelect = document.getElementById('center-name');
-        const centerNameCustom = document.getElementById('center-name-custom');
-        
-        if (!centerNameSelect) {
-            this.showMessage('設定フォームが見つかりません', 'error');
-            return;
-        }
-
-        const centerName = centerNameSelect.value;
-        this.settings = {
-            userName: document.getElementById('user-name')?.value || '',
-            centerName: centerName === 'other' ? (centerNameCustom?.value || '') : centerName,
-            codeType: document.getElementById('code-type')?.value || 'QR',
-            outputFormat: document.getElementById('output-format')?.value || 'CSV',
-            inputFormat: document.getElementById('input-format')?.value || 'XLSX'
-        };
-
-        localStorage.setItem('settings', JSON.stringify(this.settings));
-        this.showMessage('設定を保存しました', 'success');
-    }
-
-    // データ保存
-    saveData() {
-        try {
-            localStorage.setItem('inventoryData', JSON.stringify(this.inventoryData));
-            localStorage.setItem('masterData', JSON.stringify(this.masterData));
-            localStorage.setItem('stockData', JSON.stringify(this.stockData));
-        } catch (error) {
-            console.error('データ保存エラー:', error);
         }
     }
 
@@ -952,104 +1259,18 @@ class InventoryApp {
         
         if (!message || !messageText) return;
         
-        message.className = `message show ${type}`;
+        message.className = `message ${type}`;
         messageText.textContent = text;
+        
+        message.classList.add('show');
         
         setTimeout(() => {
             message.classList.remove('show');
         }, 3000);
     }
-
-    // 確認ダイアログ表示
-    showConfirm(title, message, onConfirm) {
-        const dialog = document.getElementById('confirm-dialog');
-        const confirmTitle = document.getElementById('confirm-title');
-        const confirmMessage = document.getElementById('confirm-message');
-        const confirmOk = document.getElementById('confirm-ok');
-        const confirmCancel = document.getElementById('confirm-cancel');
-        
-        if (!dialog || !confirmTitle || !confirmMessage || !confirmOk || !confirmCancel) {
-            // フォールバック：ネイティブconfirm
-            if (confirm(message)) {
-                onConfirm();
-            }
-            return;
-        }
-        
-        confirmTitle.textContent = title;
-        confirmMessage.textContent = message;
-        dialog.classList.add('show');
-        
-        const cleanup = () => {
-            dialog.classList.remove('show');
-            confirmOk.removeEventListener('click', handleOk);
-            confirmCancel.removeEventListener('click', handleCancel);
-        };
-        
-        const handleOk = () => {
-            cleanup();
-            onConfirm();
-        };
-        
-        const handleCancel = () => {
-            cleanup();
-        };
-        
-        confirmOk.addEventListener('click', handleOk);
-        confirmCancel.addEventListener('click', handleCancel);
-    }
 }
 
 // アプリケーション初期化
-let app;
 document.addEventListener('DOMContentLoaded', () => {
-    try {
-        app = new InventoryApp();
-    } catch (error) {
-        console.error('アプリ初期化エラー:', error);
-        // フォールバック：ローディング画面を隠す
-        const loading = document.getElementById('loading');
-        if (loading) {
-            loading.style.display = 'none';
-        }
-        const mainMenu = document.getElementById('main-menu');
-        if (mainMenu) {
-            mainMenu.classList.add('active');
-        }
-    }
-});
-
-// PWAインストール対応
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-});
-
-// オフライン対応
-window.addEventListener('online', () => {
-    if (app) {
-        app.showMessage('オンラインになりました', 'success');
-    }
-});
-
-window.addEventListener('offline', () => {
-    if (app) {
-        app.showMessage('オフラインモードです', 'warning');
-    }
-});
-
-// エラーハンドリング
-window.addEventListener('error', (e) => {
-    console.error('Global error:', e.error);
-    if (app) {
-        app.showMessage('予期しないエラーが発生しました', 'error');
-    }
-});
-
-window.addEventListener('unhandledrejection', (e) => {
-    console.error('Unhandled promise rejection:', e.reason);
-    if (app) {
-        app.showMessage('処理中にエラーが発生しました', 'error');
-    }
+    window.app = new InventoryApp();
 });
