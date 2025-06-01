@@ -654,7 +654,7 @@ select.form-control {
     format('woff2');
 }
 
-/* Loading screen */
+/* ローディング画面 */
 .loading-screen {
   position: fixed;
   top: 0;
@@ -670,17 +670,16 @@ select.form-control {
 
 .loading-content {
   text-align: center;
-  padding: var(--space-32);
 }
 
 .loading-spinner {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border: 4px solid var(--color-secondary);
   border-top: 4px solid var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto var(--space-24);
+  margin: 0 auto var(--space-16);
 }
 
 @keyframes spin {
@@ -688,155 +687,93 @@ select.form-control {
   100% { transform: rotate(360deg); }
 }
 
-.loading-timeout {
-  margin-top: var(--space-24);
-  padding: var(--space-16);
-  background-color: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-}
-
-/* Modal styles */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: var(--space-16);
-}
-
-.modal-content {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: var(--space-24);
-  max-width: 90%;
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-}
-
-.modal-content h3 {
-  margin-bottom: var(--space-16);
-  color: var(--color-error);
-}
-
-.modal-actions {
-  display: flex;
-  gap: var(--space-12);
-  margin-top: var(--space-24);
-}
-
-.modal-actions .btn {
-  flex: 1;
-}
-
-/* Screen layout */
-.screen {
+/* メインアプリレイアウト */
+.main-app {
   min-height: 100vh;
-  background-color: var(--color-background);
+  display: flex;
+  flex-direction: column;
 }
 
+.hidden {
+  display: none !important;
+}
+
+/* ヘッダー */
 .app-header {
   background-color: var(--color-surface);
-  padding: var(--space-20) var(--space-16);
   border-bottom: 1px solid var(--color-border);
-  text-align: center;
+  padding: var(--space-12) var(--space-16);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .app-header h1 {
-  margin-bottom: var(--space-8);
-  font-size: var(--font-size-2xl);
-}
-
-.status-info {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.screen-header {
-  background-color: var(--color-surface);
-  padding: var(--space-16);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  gap: var(--space-16);
-}
-
-.screen-header h2 {
-  margin: 0;
   font-size: var(--font-size-xl);
+  margin: 0;
+  color: var(--color-text);
 }
 
-.back-button {
-  min-width: 80px;
-  padding: var(--space-8) var(--space-12);
+/* 画面コンテナ */
+.screen {
+  flex: 1;
+  padding: var(--space-16) 0;
 }
 
-/* Main content */
-.main-content {
-  padding: var(--space-24) var(--space-16);
-}
-
-.form-content {
-  padding: var(--space-16);
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-/* Button grid for main screen */
-.button-grid {
+/* メインメニュー */
+.menu-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-16);
-  max-width: 500px;
-  margin: 0 auto;
+  margin-bottom: var(--space-24);
 }
 
-.main-button {
+.menu-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: var(--space-24);
   min-height: 120px;
-  padding: var(--space-20);
   border-radius: var(--radius-lg);
-  border: none;
-  cursor: pointer;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
   transition: all var(--duration-normal) var(--ease-standard);
-  text-decoration: none;
-  position: relative;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
 }
 
-.main-button:hover {
+.menu-btn:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 }
 
-.main-button:active {
-  transform: translateY(0);
-}
-
-.button-icon {
-  font-size: 32px;
+.menu-icon {
+  font-size: 2rem;
   margin-bottom: var(--space-8);
-  display: block;
 }
 
-.button-text {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+.menu-text {
+  text-align: center;
+  line-height: var(--line-height-tight);
 }
 
-/* Form elements specific styles */
+/* ステータス情報 */
+.status-info {
+  text-align: center;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* 棚卸しフォーム */
+.inventory-form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
 .input-group {
   display: flex;
   gap: var(--space-8);
@@ -848,14 +785,7 @@ select.form-control {
 
 .input-group .btn {
   flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.form-text {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  margin-top: var(--space-4);
-  display: block;
+  min-width: 60px;
 }
 
 .product-display {
@@ -863,337 +793,285 @@ select.form-control {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
   padding: var(--space-12);
-  font-weight: var(--font-weight-medium);
-  min-height: 44px;
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  min-height: 48px;
   display: flex;
   align-items: center;
 }
 
+.product-display.found {
+  background-color: rgba(var(--color-success-rgb), 0.1);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.product-display.not-found {
+  background-color: rgba(var(--color-warning-rgb), 0.1);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* フォームアクション */
 .form-actions {
-  margin-top: var(--space-32);
+  margin-top: var(--space-24);
 }
 
-/* QR Reader */
-.qr-reader {
-  margin-top: var(--space-16);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+/* 棚卸し結果リスト */
+.inventory-results h3 {
+  margin-bottom: var(--space-16);
+  color: var(--color-text);
+}
+
+.results-container {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-}
-
-/* Progress bar */
-.progress-bar {
-  width: 100%;
-  height: 24px;
-  background-color: var(--color-secondary);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  margin-bottom: var(--space-8);
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: var(--color-primary);
-  transition: width var(--duration-normal) var(--ease-standard);
-  border-radius: var(--radius-full);
-}
-
-/* Search group */
-.search-group {
-  margin-bottom: var(--space-24);
-}
-
-/* Edit list */
-.edit-list {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  min-height: 200px;
+  border-radius: var(--radius-lg);
   padding: var(--space-16);
+  max-height: 300px;
+  overflow-y: auto;
 }
 
-.edit-item {
-  padding: var(--space-12);
-  border-bottom: 1px solid var(--color-border);
+.result-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-8);
 }
 
-.edit-item:last-child {
+.result-item:last-child {
   border-bottom: none;
+  margin-bottom: 0;
 }
 
-.edit-item-info {
+.result-info {
   flex: 1;
 }
 
-.edit-item-info h4 {
-  margin: 0 0 var(--space-4);
-  font-size: var(--font-size-base);
+.result-product {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
 }
 
-.edit-item-info p {
-  margin: 0;
+.result-details {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
-.edit-item-actions {
+.result-quantity {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* データ取り込み・出力 */
+.import-section,
+.export-section,
+.edit-section,
+.settings-section {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.export-options {
   display: flex;
-  gap: var(--space-8);
+  flex-direction: column;
+  gap: var(--space-12);
 }
 
-/* Stats grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-16);
-}
-
-@media (min-width: 640px) {
-  .stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.stat-card {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-24);
+/* メッセージ表示 */
+.message {
+  position: fixed;
+  top: var(--space-16);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-12) var(--space-20);
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-medium);
+  z-index: 1001;
+  max-width: 90%;
   text-align: center;
 }
 
-.stat-card h3 {
-  margin: 0 0 var(--space-16);
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
+.message.success {
+  background-color: rgba(var(--color-success-rgb), 0.9);
+  color: var(--color-surface);
 }
 
-.stat-card span {
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary);
-  display: block;
-}
-
-/* Error button styles */
-.btn--error {
-  background-color: var(--color-error);
-  color: white;
-}
-
-.btn--error:hover {
+.message.error {
   background-color: rgba(var(--color-error-rgb), 0.9);
+  color: var(--color-surface);
 }
 
-.btn--error:active {
-  background-color: rgba(var(--color-error-rgb), 0.8);
+.message.warning {
+  background-color: rgba(var(--color-warning-rgb), 0.9);
+  color: var(--color-surface);
 }
 
-/* Status indicators for inventory items */
-.status--registered {
-  background-color: rgba(var(--color-success-rgb), 0.15);
-  color: var(--color-success);
-  border: 1px solid rgba(var(--color-success-rgb), 0.25);
+.message.info {
+  background-color: rgba(var(--color-info-rgb), 0.9);
+  color: var(--color-surface);
 }
 
-.status--pending {
-  background-color: rgba(var(--color-warning-rgb), 0.15);
-  color: var(--color-warning);
-  border: 1px solid rgba(var(--color-warning-rgb), 0.25);
-}
+/* モバイル最適化 */
+@media (max-width: 768px) {
+  .app-header {
+    padding: var(--space-8) var(--space-16);
+  }
 
-/* Responsive design for mobile-first */
-@media (max-width: 480px) {
-  .button-grid {
+  .app-header h1 {
+    font-size: var(--font-size-lg);
+  }
+
+  .menu-grid {
     grid-template-columns: 1fr;
     gap: var(--space-12);
   }
-  
-  .main-button {
+
+  .menu-btn {
     min-height: 80px;
     padding: var(--space-16);
   }
-  
-  .button-icon {
-    font-size: 24px;
-    margin-bottom: var(--space-4);
+
+  .menu-icon {
+    font-size: 1.5rem;
   }
-  
-  .modal-actions {
-    flex-direction: column;
+
+  .container {
+    padding-left: var(--space-12);
+    padding-right: var(--space-12);
   }
-  
+
+  .form-control {
+    font-size: var(--font-size-lg);
+    padding: var(--space-12) var(--space-16);
+    min-height: 48px;
+  }
+
+  .btn {
+    min-height: 48px;
+    font-size: var(--font-size-lg);
+  }
+
+  .btn--lg {
+    min-height: 56px;
+    font-size: var(--font-size-xl);
+  }
+
   .input-group {
     flex-direction: column;
   }
-  
-  .screen-header {
-    padding: var(--space-12);
-  }
-  
-  .back-button {
-    min-width: 60px;
-    padding: var(--space-6) var(--space-8);
-    font-size: var(--font-size-sm);
+
+  .input-group .btn {
+    min-width: auto;
   }
 }
 
-/* Large touch targets for iPhone 7 Plus one-handed operation */
-@media (min-width: 414px) and (max-width: 736px) {
-  .main-button {
-    min-height: 100px;
-    padding: var(--space-16);
+/* 大画面での中央寄せ */
+@media (min-width: 769px) {
+  .menu-grid {
+    max-width: 600px;
+    margin: 0 auto var(--space-24);
   }
-  
+
+  .container {
+    max-width: var(--container-lg);
+  }
+}
+
+/* タッチ操作の改善 */
+@media (hover: none) and (pointer: coarse) {
   .btn {
     min-height: 56px;
-    padding: var(--space-12) var(--space-20);
   }
-  
+
   .form-control {
     min-height: 56px;
-    padding: var(--space-12) var(--space-16);
-    font-size: var(--font-size-lg);
+    font-size: 16px; /* iOS zoomを防ぐ */
+  }
+
+  select.form-control {
+    font-size: 16px;
   }
 }
 
-/* Accessibility improvements */
+/* アクセシビリティ */
 @media (prefers-reduced-motion: reduce) {
   .loading-spinner {
     animation: none;
   }
   
-  .main-button:hover {
-    transform: none;
+  .menu-btn {
+    transition: none;
   }
   
-  * {
-    transition: none !important;
+  .menu-btn:hover {
+    transform: none;
   }
 }
 
-/* Focus states for keyboard navigation */
-.main-button:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
+/* フォーカス状態の改善 */
+.form-control:focus,
+.btn:focus {
+  outline: var(--focus-outline);
   outline-offset: 2px;
 }
 
-/* High contrast mode support */
+/* 高コントラストモード対応 */
 @media (prefers-contrast: high) {
-  .loading-spinner {
-    border-width: 6px;
+  .btn--primary {
+    border: 2px solid var(--color-primary);
   }
   
-  .card {
-    border-width: 2px;
-  }
-  
-  .main-button {
+  .btn--secondary {
     border: 2px solid var(--color-border);
   }
+  
+  .form-control {
+    border-width: 2px;
+  }
 }
 
-/* Print styles */
+/* 印刷スタイル */
 @media print {
-  .loading-screen,
-  .modal,
-  .btn,
-  .back-button {
-    display: none !important;
+  .app-header,
+  .menu-btn,
+  .btn {
+    display: none;
   }
   
-  .screen {
-    min-height: auto;
-  }
-  
-  body {
-    background-color: white !important;
-    color: black !important;
+  .inventory-results {
+    page-break-inside: avoid;
   }
 }
 
-/* Dark mode specific adjustments */
-@media (prefers-color-scheme: dark) {
-  .loading-spinner {
-    border-color: var(--color-secondary);
-    border-top-color: var(--color-primary);
+/* PWA スプラッシュスクリーン対応 */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-top: max(var(--space-12), env(safe-area-inset-top));
   }
 }
 
-/* Service worker notification styles */
-.sw-notification {
-  position: fixed;
-  bottom: var(--space-16);
-  left: var(--space-16);
-  right: var(--space-16);
-  background-color: var(--color-primary);
-  color: var(--color-btn-primary-text);
-  padding: var(--space-12) var(--space-16);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  transform: translateY(100px);
-  opacity: 0;
-  transition: all var(--duration-normal) var(--ease-standard);
-  z-index: 1500;
+/* カスタムスクロールバー */
+.results-container::-webkit-scrollbar {
+  width: 6px;
 }
 
-.sw-notification.show {
-  transform: translateY(0);
-  opacity: 1;
+.results-container::-webkit-scrollbar-track {
+  background: var(--color-secondary);
+  border-radius: var(--radius-sm);
 }
 
-.sw-notification .btn {
-  margin-left: var(--space-12);
-  padding: var(--space-4) var(--space-12);
-  font-size: var(--font-size-sm);
+.results-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
-/* Offline indicator */
-.offline-indicator {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--color-warning);
-  color: white;
-  text-align: center;
-  padding: var(--space-8);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  z-index: 1100;
-  transform: translateY(-100%);
-  transition: transform var(--duration-normal) var(--ease-standard);
-}
-
-.offline-indicator.show {
-  transform: translateY(0);
-}
-
-/* Data validation styles */
-.form-control.error {
-  border-color: var(--color-error);
-  box-shadow: 0 0 0 3px rgba(var(--color-error-rgb), 0.1);
-}
-
-.form-control.success {
-  border-color: var(--color-success);
-  box-shadow: 0 0 0 3px rgba(var(--color-success-rgb), 0.1);
-}
-
-.field-error {
-  color: var(--color-error);
-  font-size: var(--font-size-xs);
-  margin-top: var(--space-4);
-  display: block;
-}
-
-.field-success {
-  color: var(--color-success);
-  font-size: var(--font-size-xs);
-  margin-top: var(--space-4);
-  display: block;
+.results-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
 }
