@@ -1,70 +1,70 @@
 {
-    "name": "棚卸し管理アプリ",
-    "short_name": "棚卸し",
-    "description": "現場作業に最適化された棚卸し管理PWA。QR/JANコードスキャン、ローカル保存、データ出力に対応。",
-    "start_url": "./index.html",
-    "display": "standalone",
-    "orientation": "portrait",
-    "background_color": "#FCFCF9",
-    "theme_color": "#21808D",
-    "lang": "ja-JP",
-    "dir": "ltr",
-    "icons": [
+  "name": "棚卸し管理アプリ",
+  "short_name": "棚卸し",
+  "description": "現場作業に最適化された棚卸し管理PWA。QR/JANコードスキャン、ローカル保存、データ出力に対応。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FCFCF9",
+  "theme_color": "#21808D",
+  "lang": "ja-JP",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "棚卸し開始",
+      "short_name": "棚卸し",
+      "url": "./index.html?screen=inventory",
+      "description": "棚卸し作業を開始する",
+      "icons": [
         {
-            "src": "./icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "./icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
+          "src": "./icon-192.png",
+          "sizes": "192x192"
         }
-    ],
-    "prefer_related_applications": false,
-    "categories": ["business", "productivity"],
-    "shortcuts": [
+      ]
+    },
+    {
+      "name": "データ出力",
+      "short_name": "出力",
+      "url": "./index.html?screen=export",
+      "description": "棚卸しデータを出力する",
+      "icons": [
         {
-            "name": "棚卸し開始",
-            "short_name": "棚卸し",
-            "url": "./index.html?screen=inventory",
-            "description": "棚卸し作業を開始する",
-            "icons": [
-                {
-                    "src": "./icon-192.png",
-                    "sizes": "192x192"
-                }
-            ]
-        },
-        {
-            "name": "データ出力",
-            "short_name": "出力",
-            "url": "./index.html?screen=export",
-            "description": "棚卸しデータを出力する",
-            "icons": [
-                {
-                    "src": "./icon-192.png",
-                    "sizes": "192x192"
-                }
-            ]
+          "src": "./icon-192.png",
+          "sizes": "192x192"
         }
-    ],
-    "screenshots": [
-        {
-            "src": "./screenshot-1.jpg",
-            "sizes": "1080x1920",
-            "type": "image/jpeg",
-            "platform": "narrow",
-            "label": "メインメニュー画面"
-        },
-        {
-            "src": "./screenshot-2.jpg",
-            "sizes": "1080x1920",
-            "type": "image/jpeg",
-            "platform": "narrow",
-            "label": "棚卸し入力画面"
-        }
-    ]
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./screenshot-1.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "platform": "narrow",
+      "label": "メインメニュー画面"
+    },
+    {
+      "src": "./screenshot-2.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "platform": "narrow",
+      "label": "棚卸し入力画面"
+    }
+  ]
 }
