@@ -1,5 +1,4 @@
-// 棚卸し管理PWAアプリケーション - v1.1.0
-// 更新：商品マスタのW列（JANコード）参照、ロット選択ロジック改善
+// 棚卸し管理PWAアプリケーション - 完全版（修正済み）
 
 // IndexedDB設定
 const DB_NAME = 'inventoryDB';
@@ -17,48 +16,6 @@ let stockData = [];
 let centerNames = [];
 let beepSound = null;
 let currentEditId = null;
-
-// サンプルデータ
-const SAMPLE_PRODUCTS = [
-    {"janCode": "4562152082298", "code": "01A0194", "name": "フルーツ缶詰　黄桃　4号　ライト"},
-    {"janCode": "4562152082304", "code": "01A0195", "name": "フルーツ缶詰　白桃　4号　ライト"},
-    {"janCode": "4562152089525", "code": "01A0412", "name": "Jeretería　フレッシュフルーツ　オレンジ"},
-    {"janCode": "4562152089532", "code": "01A0413", "name": "Jeretería　フレッシュフルーツ　マスカット"},
-    {"janCode": "4562152089563", "code": "01A0416", "name": "Jeretería くだものぎっしり　みかん"},
-    {"janCode": "4562152089570", "code": "01A0417", "name": "Jeretería くだものぎっしり　白桃"},
-    {"janCode": "4562152089587", "code": "01A0418", "name": "Jeretería くだものぎっしり　ぶどう＆ナタデココ"},
-    {"janCode": "4562152089594", "code": "01A0419", "name": "Jeretería くだものぎっしり　ミックス"},
-    {"janCode": "4562152080003", "code": "01A0453", "name": "くだものごろん　みかんゼリー002"},
-    {"janCode": "4573116020492", "code": "01A0759", "name": "ぷるっとゼリー　みかん"},
-    {"janCode": "4573116020515", "code": "01A0761", "name": "ぷるっとゼリー　ミックス"},
-    {"janCode": "4562152081109", "code": "EA00103", "name": "有機栽培天津甘栗　小袋"}
-];
-
-const SAMPLE_STOCK = [
-    {"code": "01A0194", "quantity": 8400, "center": "コンテナ倉庫", "lot": "240321调整"},
-    {"code": "01A0195", "quantity": 6000, "center": "コンテナ倉庫", "lot": "240321调整"},
-    {"code": "01A0412", "quantity": 96, "center": "島田完成品倉庫", "lot": "11000-250329"},
-    {"code": "01A0412", "quantity": 720, "center": "島田完成品倉庫", "lot": "11407-250507"},
-    {"code": "01A0413", "quantity": 432, "center": "吉田使用禁止倉庫", "lot": "10316-241224"},
-    {"code": "01A0413", "quantity": 96, "center": "島田完成品倉庫", "lot": "11260-250422"},
-    {"code": "01A0416", "quantity": 36, "center": "島田完成品倉庫", "lot": "10723-250303"},
-    {"code": "01A0416", "quantity": 12, "center": "島田完成品倉庫", "lot": "10723-250310"},
-    {"code": "01A0417", "quantity": 12, "center": "吉田完成品B品倉庫", "lot": "10269-241217"},
-    {"code": "01A0417", "quantity": 5664, "center": "島田完成品倉庫", "lot": "11036-250402-2"},
-    {"code": "01A0418", "quantity": 36, "center": "島田完成品倉庫", "lot": "10507-250208"},
-    {"code": "01A0418", "quantity": 96, "center": "島田完成品倉庫", "lot": "10835-250317-1"},
-    {"code": "01A0419", "quantity": 168, "center": "島田完成品倉庫", "lot": "10798-250312"},
-    {"code": "01A0419", "quantity": 24, "center": "島田完成品倉庫", "lot": "10974-250327-1"},
-    {"code": "01A0453", "quantity": 48, "center": "吉田使用禁止倉庫", "lot": "240930调整"},
-    {"code": "01A0453", "quantity": 24960, "center": "コンテナ倉庫", "lot": "CTLS-H0731-48-22"},
-    {"code": "01A0759", "quantity": 24, "center": "吉田使用禁止倉庫", "lot": "241130调整"},
-    {"code": "01A0759", "quantity": 852, "center": "吉田完成品B品倉庫", "lot": "8451-2405021"},
-    {"code": "01A0761", "quantity": 12, "center": "島田完成品倉庫", "lot": "11273-250424-2"},
-    {"code": "01A0761", "quantity": 20292, "center": "島田完成品倉庫", "lot": "11273-250424-2"},
-    {"code": "EA00103", "quantity": 100, "center": "吉田完成品B品倉庫", "lot": "240630调整2"},
-    {"code": "EA00103", "quantity": 800, "center": "島田完成品倉庫", "lot": "240831调整"},
-    {"code": "EA00103", "quantity": 20, "center": "島田完成品倉庫", "lot": "241130调整"}
-];
 
 // 初期化
 document.addEventListener('DOMContentLoaded', async () => {
@@ -81,10 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// -------------------------------
-// データベース操作
-// -------------------------------
-
 // IndexedDBを開く
 async function openDB() {
     return new Promise((resolve, reject) => {
@@ -102,17 +55,17 @@ async function openDB() {
             
             // 商品マスタストア
             if (!db.objectStoreNames.contains(PRODUCT_STORE)) {
-                const productStore = db.createObjectStore(PRODUCT_STORE, { keyPath: 'janCode' });
-                productStore.createIndex('code', 'code', { unique: false });
+                const productStore = db.createObjectStore(PRODUCT_STORE, { keyPath: 'code' });
                 productStore.createIndex('name', 'name', { unique: false });
+                productStore.createIndex('janCode', 'janCode', { unique: false });
             }
             
             // 在庫データストア
             if (!db.objectStoreNames.contains(STOCK_STORE)) {
                 const stockStore = db.createObjectStore(STOCK_STORE, { keyPath: 'id', autoIncrement: true });
                 stockStore.createIndex('code', 'code', { unique: false });
-                stockStore.createIndex('lot', 'lot', { unique: false });
                 stockStore.createIndex('center', 'center', { unique: false });
+                stockStore.createIndex('lot', 'lot', { unique: false });
             }
         };
         
@@ -180,24 +133,6 @@ async function getData(storeName, key = null) {
     }
 }
 
-// インデックスからデータ検索
-async function getDataByIndex(storeName, indexName, value) {
-    try {
-        const transaction = db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        const index = store.index(indexName);
-        
-        return new Promise((resolve, reject) => {
-            const request = index.getAll(value);
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
-    } catch (error) {
-        console.error('インデックス検索エラー:', error);
-        throw error;
-    }
-}
-
 // データを削除
 async function deleteData(storeName, key) {
     try {
@@ -232,30 +167,18 @@ async function clearStore(storeName) {
     }
 }
 
-// -------------------------------
-// 初期化関数
-// -------------------------------
-
+// アプリ初期化
 async function initializeApp() {
     try {
-        // ローディング表示
         showLoading('アプリを初期化中...');
         
-        // IndexedDBを開く
         db = await openDB();
-        
-        // サンプルデータを初期化
-        await initializeSampleData();
-        
-        // データ読み込み
         await loadProductMaster();
         await loadStockData();
         await updateDataSummary();
         
-        // PWA対応
         registerServiceWorker();
         
-        // ローディング非表示
         hideLoading();
     } catch (error) {
         console.error('アプリ初期化エラー:', error);
@@ -264,35 +187,11 @@ async function initializeApp() {
     }
 }
 
-// サンプルデータの初期化
-async function initializeSampleData() {
-    try {
-        // 既存のデータをチェック
-        const existingProducts = await getData(PRODUCT_STORE);
-        const existingStock = await getData(STOCK_STORE);
-        
-        // データが空の場合のみサンプルデータを追加
-        if (!existingProducts || existingProducts.length === 0) {
-            await saveData(PRODUCT_STORE, SAMPLE_PRODUCTS);
-            console.log('サンプル商品マスタを初期化しました');
-        }
-        
-        if (!existingStock || existingStock.length === 0) {
-            await saveData(STOCK_STORE, SAMPLE_STOCK);
-            console.log('サンプル在庫データを初期化しました');
-        }
-    } catch (error) {
-        console.error('サンプルデータ初期化エラー:', error);
-    }
-}
-
 // Service Workerの登録
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
-            const swUrl = 'sw.js';
-            // オンライン版のため、PWAマニフェストとService Workerを実際に用意する必要がある
-            const registration = await navigator.serviceWorker.register(swUrl, { scope: './' });
+            const registration = await navigator.serviceWorker.register('./sw.js');
             console.log('Service Worker registered:', registration);
         } catch (error) {
             console.error('Service Worker registration failed:', error);
@@ -313,7 +212,6 @@ async function loadStockData() {
     try {
         stockData = await getData(STOCK_STORE) || [];
         
-        // センター名を抽出
         const stockCenters = [...new Set(stockData.map(item => item.center).filter(Boolean))];
         centerNames = [...new Set([...centerNames, ...stockCenters])];
         updateCenterOptions();
@@ -324,54 +222,62 @@ async function loadStockData() {
 }
 
 function setupEventListeners() {
-    // 棚卸しフォームの送信
     const inventoryForm = document.getElementById('inventory-form');
     if (inventoryForm) {
         inventoryForm.addEventListener('submit', handleInventorySubmit);
     }
     
-    // 商品コード入力時の検索
     const productCodeInput = document.getElementById('product-code');
     if (productCodeInput) {
         productCodeInput.addEventListener('input', searchProduct);
     }
     
-    // 編集画面の検索機能
+    const startScanBtn = document.getElementById('start-scan-btn');
+    const stopScanBtn = document.getElementById('stop-scan-btn');
+    
+    if (startScanBtn) {
+        startScanBtn.addEventListener('click', startQRScan);
+    }
+    
+    if (stopScanBtn) {
+        stopScanBtn.addEventListener('click', stopQRScan);
+    }
+    
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', filterEditList);
+    }
+    
+    // ロット選択時のイベントリスナーを追加
+    const lotNumberInput = document.getElementById('lot-number');
+    if (lotNumberInput) {
+        lotNumberInput.addEventListener('change', handleLotSelection);
+        lotNumberInput.addEventListener('input', handleLotSelection);
     }
 }
 
 function initBeepSound() {
     try {
-        beepSound = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAsAABbhgAJCQkVFRUVICAgLCwsLDc3Nzc3Q0NDT09PT1paWmZmZmZxcXF9fX19iYmJlZWVlaampra2trbBwcHNzc3N2NjY5OTk5O/v7/v7+/v8/Pz8/Pz8//////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAQgAAAAAAAAW4YzgbdnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV');
+        beepSound = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAsAABbhgAJCQkVFRUVICAgLCwsLDc3Nzc3Q0NDT09PT1paWmZmZmZxcXF9fX19iYmJlZWVlaampra2trbBwcHNzc3N2NjY5OTk5O/v7/v7+/v8/Pz8/Pz8//////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAQgAAAAAAAAW4YzgbdnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV');
     } catch (error) {
         console.error('ビープ音初期化エラー:', error);
-        // 音声APIが使えない場合のダミー関数
         beepSound = {
             play: () => console.log('ビープ音再生（音声API非対応）')
         };
     }
 }
 
-// -------------------------------
 // 画面操作機能
-// -------------------------------
-
 function showScreen(screenId) {
     try {
-        // すべての画面を非表示
         document.querySelectorAll('.screen').forEach(screen => {
             screen.classList.remove('active');
         });
         
-        // 指定した画面を表示
         const screen = document.getElementById(screenId);
         if (screen) {
             screen.classList.add('active');
             
-            // 画面に応じた初期化処理
             switch (screenId) {
                 case 'inventory-section':
                     resetInventoryForm();
@@ -451,12 +357,6 @@ function resetInventoryForm() {
     if (unit) {
         unit.value = '個';
     }
-    
-    // ロットリストをクリア
-    const lotList = document.getElementById('lot-list');
-    if (lotList) {
-        lotList.innerHTML = '';
-    }
 }
 
 function focusProductCode() {
@@ -468,10 +368,7 @@ function focusProductCode() {
     }, 100);
 }
 
-// -------------------------------
 // QRコード読み取り機能
-// -------------------------------
-
 async function startQRScan() {
     try {
         if (qrScanner) {
@@ -483,7 +380,6 @@ async function startQRScan() {
             throw new Error('QRリーダー要素が見つかりません');
         }
         
-        // カメラのアクセス許可を要求
         try {
             await navigator.mediaDevices.getUserMedia({ video: true });
         } catch (error) {
@@ -540,11 +436,12 @@ function handleQRScanSuccess(decodedText) {
         document.getElementById('product-code').value = decodedText;
         searchProduct();
         
-        // フォーカスをロットフィールドに移動
         setTimeout(() => {
-            const lotInput = document.getElementById('lot-number');
-            if (lotInput) {
-                lotInput.focus();
+            stopQRScan();
+            const quantityInput = document.getElementById('quantity');
+            if (quantityInput) {
+                quantityInput.focus();
+                quantityInput.select();
             }
         }, 100);
     } catch (error) {
@@ -563,11 +460,8 @@ function playBeep() {
     }
 }
 
-// -------------------------------
-// 商品検索機能 - 更新済み
-// -------------------------------
-
-async function searchProduct() {
+// 商品検索機能（W列参照）
+function searchProduct() {
     try {
         const codeInput = document.getElementById('product-code');
         const productNameField = document.getElementById('product-name');
@@ -582,87 +476,109 @@ async function searchProduct() {
             return;
         }
         
-        // JANコード（W列）で商品を検索
-        let product = null;
-        // まずJANコードとして検索
-        const products = await getData(PRODUCT_STORE, code);
-        
-        if (products) {
-            // JANコードで見つかった場合
-            product = products;
+        // W列（JANコード）から商品を検索
+        const product = productMaster.find(p => p.janCode === code);
+        if (product) {
             productNameField.value = product.name;
             playBeep();
-        } else {
-            // JANコードで見つからない場合、コードインデックスから検索
-            const productsByCode = await getDataByIndex(PRODUCT_STORE, 'code', code);
             
-            if (productsByCode && productsByCode.length > 0) {
-                product = productsByCode[0];
-                productNameField.value = product.name;
-                playBeep();
-            } else {
-                productNameField.value = '商品が見つかりません';
-                if (lotList) lotList.innerHTML = '';
-                return;
-            }
-        }
-        
-        // 商品が見つかったら、そのA列の商品コードを使用して在庫データからロットを検索
-        if (product && lotList) {
-            // 商品の商品コードを取得
-            const productCode = product.code;
-            
-            // その商品コードを使用して在庫データからロットを検索
-            const stockItems = await getDataByIndex(STOCK_STORE, 'code', productCode);
+            // A列の商品コードで在庫データからロットを検索
+            const stockItems = stockData.filter(s => s.code === product.code);
             lotList.innerHTML = '';
             
-            if (stockItems && stockItems.length > 0) {
-                stockItems.forEach(item => {
-                    if (item.lot) {
-                        const option = document.createElement('option');
-                        option.value = item.lot;
-                        lotList.appendChild(option);
-                    }
-                });
-                showToast(`${stockItems.length}件のロットが見つかりました`, 'success');
-            } else {
-                showToast('在庫データが見つかりません', 'warning');
-            }
+            // ロット番号と合算数量を表示
+            const lotMap = new Map();
+            stockItems.forEach(item => {
+                if (item.lot) {
+                    const total = lotMap.get(item.lot) || 0;
+                    lotMap.set(item.lot, total + (parseFloat(item.quantity) || 0));
+                }
+            });
+            
+            lotMap.forEach((quantity, lot) => {
+                const option = document.createElement('option');
+                option.value = lot;
+                option.textContent = `${lot} (在庫: ${quantity})`;
+                lotList.appendChild(option);
+            });
+        } else {
+            productNameField.value = '商品が見つかりません';
+            lotList.innerHTML = '';
         }
     } catch (error) {
         console.error('商品検索エラー:', error);
-        showToast('検索中にエラーが発生しました', 'error');
     }
 }
 
-// -------------------------------
-// 棚卸しデータ登録
-// -------------------------------
+// ロット選択時の自動数量入力処理
+function handleLotSelection() {
+    try {
+        const codeInput = document.getElementById('product-code');
+        const lotInput = document.getElementById('lot-number');
+        const quantityInput = document.getElementById('quantity');
+        
+        const code = codeInput.value.trim();
+        const selectedLot = lotInput.value.trim();
+        
+        if (!code || !selectedLot) return;
+        
+        // W列から商品コードを取得
+        const product = productMaster.find(p => p.janCode === code);
+        if (!product) return;
+        
+        // 在庫データから合算処理
+        const matchingStocks = stockData.filter(s => 
+            s.code === product.code && s.lot === selectedLot
+        );
+        
+        let totalQuantity = matchingStocks.reduce((sum, stock) => 
+            sum + (parseFloat(stock.quantity) || 0), 0
+        );
+        
+        quantityInput.value = totalQuantity || 1;
+        quantityInput.classList.add('highlight');
+        setTimeout(() => quantityInput.classList.remove('highlight'), 1000);
+        
+        if (totalQuantity > 0) {
+            playBeep();
+            showToast(`在庫数量 ${totalQuantity} を自動入力しました`, 'success');
+        }
+    } catch (error) {
+        console.error('ロット選択処理エラー:', error);
+        showToast('在庫数量の取得に失敗しました', 'error');
+    }
+}
 
+// 棚卸しデータ登録
 async function handleInventorySubmit(event) {
     event.preventDefault();
     
     try {
-        const code = document.getElementById('product-code').value.trim();
-        const name = document.getElementById('product-name').value.trim();
+        const janCode = document.getElementById('product-code').value.trim();
+        const productName = document.getElementById('product-name').value.trim();
         const quantity = parseInt(document.getElementById('quantity').value) || 1;
         const unit = document.getElementById('unit').value;
         const lot = document.getElementById('lot-number').value.trim();
         const shelf = document.getElementById('shelf-number').value.trim();
         
-        if (!code) {
+        if (!janCode) {
             showToast('商品コードを入力してください', 'warning');
             return;
         }
         
-        if (name === '商品が見つかりません') {
+        if (productName === '商品が見つかりません') {
             showToast('有効な商品コードを入力してください', 'warning');
             return;
         }
         
+        // JANコードから商品マスタ情報を取得
+        const product = productMaster.find(p => p.janCode === janCode);
+        const productCode = product ? product.code : '';
+        
         const inventoryData = {
-            code: code,
-            name: name || '未設定',
+            code: productCode,
+            janCode: janCode,
+            name: productName || '未設定',
             quantity: quantity,
             unit: unit,
             lot: lot,
@@ -677,7 +593,6 @@ async function handleInventorySubmit(event) {
         showToast('登録完了しました', 'success');
         playBeep();
         
-        // フォームをリセットして次の入力に備える
         resetInventoryForm();
         focusProductCode();
     } catch (error) {
@@ -686,10 +601,7 @@ async function handleInventorySubmit(event) {
     }
 }
 
-// -------------------------------
-// データ取り込み機能 - 更新済み
-// -------------------------------
-
+// データ取り込み機能
 async function importProductData() {
     try {
         const fileInput = document.getElementById('product-file');
@@ -708,26 +620,22 @@ async function importProductData() {
         
         const products = [];
         
-        // ヘッダー行をスキップして処理
+        // ヘッダー行からW列、A列、B列のインデックスを特定
+        const headers = jsonData[0] || [];
+        const janCodeColIndex = 22; // W列のインデックス (0ベース、Wは22)
+        const productCodeColIndex = 0; // A列のインデックス
+        const productNameColIndex = 1; // B列のインデックス
+        
         for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i];
-            if (row && row.length > 22) { // W列まであることを確認
-                // JANコード（W列）がある行のみ処理
-                const janCode = String(row[22] || '').trim();
-                if (janCode) {
-                    const productCode = String(row[0] || '').trim();
-                    const productName = String(row[1] || '').trim();
-                    
-                    if (productCode && productName) {
-                        products.push({
-                            janCode: janCode,
-                            code: productCode,
-                            name: productName,
-                            category: String(row[15] || '').trim(),
-                            price: parseFloat(row[26]) || 0
-                        });
-                    }
-                }
+            if (row && row.length > janCodeColIndex && row[productCodeColIndex]) {
+                products.push({
+                    code: String(row[productCodeColIndex] || '').trim(),
+                    name: String(row[productNameColIndex] || '').trim(),
+                    janCode: String(row[janCodeColIndex] || '').trim(),
+                    category: String(row[15] || '').trim(),
+                    price: parseFloat(row[26]) || 0
+                });
             }
         }
         
@@ -767,19 +675,23 @@ async function importStockData() {
         
         const stocks = [];
         
-        // データ行を処理（A=商品番号、B=商品名称、C=数量、J=倉庫名、P=ロット）
+        // A列、B列、C列、J列、P列のインデックスを特定
+        const codeColIndex = 0;      // A列
+        const nameColIndex = 1;      // B列
+        const quantityColIndex = 2;  // C列
+        const centerColIndex = 9;    // J列
+        const lotColIndex = 15;      // P列
+        
         for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i];
-            if (row && row.length > 15) { // P列まであることを確認
-                if (row[0]) { // A列の商品番号がある行のみ処理
-                    stocks.push({
-                        code: String(row[0]).trim(), // A列: 商品番号
-                        name: String(row[1] || '').trim(), // B列: 商品名称
-                        quantity: parseFloat(row[2]) || 0, // C列: 数量
-                        center: String(row[9] || '').trim(), // J列: 倉庫名
-                        lot: String(row[15] || '').trim() // P列: ロット
-                    });
-                }
+            if (row && row[codeColIndex]) {
+                stocks.push({
+                    code: String(row[codeColIndex] || '').trim(),
+                    name: String(row[nameColIndex] || '').trim(),
+                    quantity: parseFloat(row[quantityColIndex]) || 0,
+                    center: String(row[centerColIndex] || '').trim(),
+                    lot: String(row[lotColIndex] || '').trim()
+                });
             }
         }
         
@@ -801,10 +713,7 @@ async function importStockData() {
     }
 }
 
-// -------------------------------
 // データ出力機能
-// -------------------------------
-
 async function exportData() {
     try {
         const format = document.querySelector('input[name="export-format"]:checked').value;
@@ -817,12 +726,12 @@ async function exportData() {
         
         showLoading('データを出力中...');
         
-        // データを整形
         const exportData = inventoryData.map(item => {
             const stockItem = stockData.find(s => s.code === item.code && s.lot === item.lot);
             
             return {
                 '商品コード': item.code,
+                'JANコード': item.janCode,
                 '商品名': item.name,
                 '数量': item.quantity,
                 '単位': item.unit,
@@ -885,10 +794,7 @@ function downloadExcel(data, fileName) {
     }
 }
 
-// -------------------------------
 // 編集機能
-// -------------------------------
-
 async function loadEditList() {
     try {
         const inventoryData = await getData(INVENTORY_STORE);
@@ -902,7 +808,6 @@ async function loadEditList() {
             return;
         }
         
-        // 新しい順に並べ替え
         inventoryData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         
         inventoryData.forEach(item => {
@@ -911,7 +816,7 @@ async function loadEditList() {
             
             editItem.innerHTML = `
                 <div class="edit-item-info">
-                    <div class="code">${item.code}</div>
+                    <div class="code">${item.janCode || item.code}</div>
                     <div>${item.name}</div>
                     <div>${item.quantity}${item.unit} / ${item.lot || '未設定'}</div>
                 </div>
@@ -959,8 +864,7 @@ async function openEditModal(id) {
             return;
         }
         
-        document.getElementById('edit-product-code').value = item.code;
-        document.getElementById('edit-product-name').value = item.name;
+        document.getElementById('edit-product-code').value = item.janCode || item.code;
         document.getElementById('edit-quantity').value = item.quantity;
         document.getElementById('edit-unit').value = item.unit;
         document.getElementById('edit-lot-number').value = item.lot;
@@ -992,7 +896,6 @@ async function saveEdit() {
             return;
         }
         
-        // 更新するフィールド
         item.quantity = parseInt(document.getElementById('edit-quantity').value) || 0;
         item.unit = document.getElementById('edit-unit').value;
         item.lot = document.getElementById('edit-lot-number').value;
@@ -1036,10 +939,7 @@ async function clearAllData() {
     }
 }
 
-// -------------------------------
 // 設定機能
-// -------------------------------
-
 function loadSettings() {
     const personName = localStorage.getItem('personName') || '';
     const centerName = localStorage.getItem('centerName') || '';
@@ -1083,13 +983,10 @@ function updateCenterOptions() {
     const centerSelect = document.getElementById('center-name');
     if (!centerSelect) return;
     
-    // 現在の選択値を保持
     const currentValue = centerSelect.value;
     
-    // オプションをクリア
     centerSelect.innerHTML = '<option value="">センターを選択</option>';
     
-    // センター名を追加
     centerNames.forEach(center => {
         if (center) {
             const option = document.createElement('option');
@@ -1099,44 +996,12 @@ function updateCenterOptions() {
         }
     });
     
-    // 以前の値があれば復元
     if (currentValue) {
         centerSelect.value = currentValue;
     }
 }
 
-async function createBackup() {
-    try {
-        showLoading('バックアップを作成中...');
-        
-        const backup = {
-            products: await getData(PRODUCT_STORE),
-            stock: await getData(STOCK_STORE),
-            inventory: await getData(INVENTORY_STORE),
-            version: '1.1.0',
-            timestamp: new Date().toISOString()
-        };
-        
-        const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `棚卸しデータバックアップ_${new Date().toISOString().slice(0, 10)}.json`;
-        link.click();
-        
-        URL.revokeObjectURL(link.href);
-        showToast('バックアップを作成しました', 'success');
-    } catch (error) {
-        console.error('バックアップ作成エラー:', error);
-        showToast('バックアップの作成に失敗しました', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// -------------------------------
 // データ状況更新
-// -------------------------------
-
 async function updateDataSummary() {
     try {
         const products = await getData(PRODUCT_STORE) || [];
