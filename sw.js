@@ -1,5 +1,7 @@
 // Service Worker - 棚卸しPWA完全版
 
+// sw.js
+
 const CACHE_NAME = 'inventory-pwa-v1.0.0';
 
 // キャッシュするファイル
@@ -17,6 +19,7 @@ const CACHE_ASSETS = [
 self.addEventListener('install', (event) => {
   console.log('Service Worker: インストール中...');
   
+  // キャッシュの即時更新のために skipWaiting を使用
   self.skipWaiting();
   
   event.waitUntil(
@@ -38,12 +41,14 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   console.log('Service Worker: アクティベート中...');
   
+  // 古いキャッシュを削除
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
             .filter((cacheName) => {
+              // 現在のキャッシュ以外を削除
               return cacheName !== CACHE_NAME;
             })
             .map((cacheName) => {
@@ -53,6 +58,7 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
+        // 全クライアントをコントロール
         return self.clients.claim();
       })
   );
@@ -60,8 +66,10 @@ self.addEventListener('activate', (event) => {
 
 // フェッチ時の処理（キャッシュファースト戦略）
 self.addEventListener('fetch', (event) => {
+  // GET リクエストのみ処理
   if (event.request.method !== 'GET') return;
   
+  // APIリクエストなどは除外
   if (event.request.url.includes('/api/')) {
     return;
   }
@@ -69,15 +77,19 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((cacheResponse) => {
+        // キャッシュにあればそれを返す
         if (cacheResponse) {
           console.log('キャッシュから提供:', event.request.url);
+          // バックグラウンドでキャッシュを更新（オプション）
           updateCache(event.request);
           return cacheResponse;
         }
         
+        // キャッシュになければネットワークから取得
         console.log('ネットワークから取得:', event.request.url);
         return fetch(event.request)
           .then((networkResponse) => {
+            // レスポンスをクローンしてキャッシュに保存
             if (networkResponse && networkResponse.status === 200) {
               const responseToCache = networkResponse.clone();
               caches.open(CACHE_NAME)
@@ -93,10 +105,12 @@ self.addEventListener('fetch', (event) => {
           })
           .catch((error) => {
             console.error('ネットワークリクエストエラー:', error);
+            // HTML要求の場合はindex.htmlを返す（SPAの場合に有用）
             if (event.request.headers.get('accept').includes('text/html')) {
               return caches.match('./index.html');
             }
             
+            // その他はエラーを返す
             throw error;
           });
       })
@@ -119,11 +133,12 @@ function updateCache(request) {
       }
     })
     .catch((error) => {
+      // バックグラウンド更新なのでエラーは無視
       console.log('バックグラウンド更新スキップ:', request.url);
     });
 }
 
-// メッセージの受信処理
+// メッセージの受信処理（バージョン管理用）
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
