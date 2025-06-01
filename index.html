@@ -2,28 +2,48 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#21808D">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="棚卸し">
-    <title>棚卸し管理PWA</title>
-    <link rel="manifest" href="manifest.json">
+    <title>棚卸し管理アプリ</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://seiumiyata.github.io/invent2/html5-qrcode.min.js"></script>
-    <script src="https://seiumiyata.github.io/invent2/xlsx.full.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-    <!-- メインメニュー -->
+    <!-- メインメニュー画面 -->
     <div id="main-menu" class="screen active">
         <div class="container">
-            <h1 class="app-title">📦 棚卸し管理</h1>
-            <div class="menu-buttons">
-                <button class="btn btn--menu btn--primary" onclick="showScreen('inventory-section')">📦 棚卸し</button>
-                <button class="btn btn--menu btn--secondary" onclick="showScreen('import-section')">📂 データ取り込み</button>
-                <button class="btn btn--menu btn--secondary" onclick="showScreen('export-section')">📤 データ出力</button>
-                <button class="btn btn--menu btn--secondary" onclick="showScreen('edit-section')">✏️ 編集</button>
-                <button class="btn btn--menu btn--secondary" onclick="showScreen('settings-section')">⚙️ 設定</button>
+            <header class="header">
+                <h1>棚卸し管理</h1>
+                <div class="status-info">
+                    <span id="person-name">担当者未設定</span>
+                    <span id="center-name">センター未設定</span>
+                </div>
+            </header>
+
+            <div class="menu-grid">
+                <button class="btn btn--primary menu-btn" onclick="showScreen('inventory-section')">
+                    📦 棚卸し
+                </button>
+                <button class="btn btn--secondary menu-btn" onclick="showScreen('import-section')">
+                    📥 データ取り込み
+                </button>
+                <button class="btn btn--secondary menu-btn" onclick="showScreen('export-section')">
+                    📤 データ出力
+                </button>
+                <button class="btn btn--secondary menu-btn" onclick="showScreen('edit-section')">
+                    ✏️ 編集
+                </button>
+                <button class="btn btn--secondary menu-btn" onclick="showScreen('settings-section')">
+                    ⚙️ 設定
+                </button>
+                <button class="btn btn--outline menu-btn" onclick="showDataSummary()">
+                    📊 データ確認
+                </button>
             </div>
         </div>
     </div>
@@ -31,57 +51,61 @@
     <!-- 棚卸し画面 -->
     <div id="inventory-section" class="screen">
         <div class="container">
-            <h2 class="screen-title">📱 棚卸し入力</h2>
-            
-            <button id="qr-scan-btn" class="btn btn--action btn--primary" onclick="startQRScan()">📷 QRコード読み取り</button>
-            
-            <div id="qr-reader" class="qr-reader" style="display: none;">
-                <div id="qr-reader-element"></div>
-                <div class="qr-controls">
-                    <button id="torch-btn" class="btn" onclick="toggleTorch()">💡 ライト</button>
-                    <button id="close-qr-btn" class="btn" onclick="stopQRScan()">✕ 停止</button>
-                </div>
-            </div>
+            <header class="screen-header">
+                <button class="btn btn--outline btn--sm" onclick="showScreen('main-menu')">← メニュー</button>
+                <h2>棚卸し入力</h2>
+                <button class="btn btn--outline btn--sm" id="torch-btn" onclick="toggleTorch()">💡</button>
+            </header>
 
-            <form id="inventory-form">
-                <div class="form-group">
-                    <label class="form-label">商品コード</label>
-                    <input type="text" id="product-code" class="form-control" placeholder="商品コードを入力" required>
+            <form id="inventory-form" class="inventory-form">
+                <div class="qr-section">
+                    <div id="qr-reader"></div>
+                    <button type="button" class="btn btn--primary" id="start-scan-btn" onclick="startQRScan()">
+                        📷 QRスキャン開始
+                    </button>
+                    <button type="button" class="btn btn--secondary" id="stop-scan-btn" onclick="stopQRScan()" style="display: none;">
+                        ⏹️ スキャン停止
+                    </button>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">商品名</label>
-                    <input type="text" id="product-name" class="form-control" placeholder="自動表示" readonly>
+                    <label class="form-label" for="product-code">商品コード</label>
+                    <input type="text" id="product-code" class="form-control" placeholder="手入力またはスキャン" onchange="searchProduct()">
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">数量</label>
-                    <input type="number" id="quantity" class="form-control" value="1" min="1" required>
+                    <label class="form-label" for="product-name">商品名</label>
+                    <input type="text" id="product-name" class="form-control" readonly>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">単位</label>
+                    <label class="form-label" for="quantity">数量</label>
+                    <input type="number" id="quantity" class="form-control" value="1" min="1" onfocus="this.select()">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="unit">単位</label>
                     <select id="unit" class="form-control">
                         <option value="個">個</option>
                         <option value="箱">箱</option>
                         <option value="甲">甲</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">ロット</label>
-                    <input type="text" id="lot" class="form-control" placeholder="ロット番号">
+                    <label class="form-label" for="lot-number">ロット番号</label>
+                    <input type="text" id="lot-number" class="form-control" list="lot-list" placeholder="ロット番号を入力">
+                    <datalist id="lot-list"></datalist>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">棚番号</label>
-                    <input type="text" id="shelf" class="form-control" placeholder="棚番号">
+                    <label class="form-label" for="shelf-number">棚番号</label>
+                    <input type="text" id="shelf-number" class="form-control" placeholder="棚番号を入力">
                 </div>
-                
-                <div class="button-group">
-                    <button type="submit" class="btn btn--action btn--primary">✅ 登録</button>
-                    <button type="button" class="btn back-btn" onclick="showScreen('main-menu')">← メニューに戻る</button>
-                </div>
+
+                <button type="submit" class="btn btn--primary btn--full-width btn--lg">
+                    ✅ 登録
+                </button>
             </form>
         </div>
     </div>
@@ -89,24 +113,33 @@
     <!-- データ取り込み画面 -->
     <div id="import-section" class="screen">
         <div class="container">
-            <h2 class="screen-title">📂 データ取り込み</h2>
-            
-            <div class="form-group">
-                <label class="form-label">商品マスタ（.xlsx）</label>
-                <input type="file" id="import-master" accept=".xlsx,.xls" class="form-control">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">データ在庫（.xls/.xlsx）</label>
-                <input type="file" id="import-stock" accept=".xlsx,.xls" class="form-control">
-            </div>
-            
-            <div id="import-loading" class="hidden">
-                <div class="loading">取り込み中...</div>
-            </div>
-            
-            <div class="button-group">
-                <button class="btn back-btn" onclick="showScreen('main-menu')">← メニューに戻る</button>
+            <header class="screen-header">
+                <button class="btn btn--outline btn--sm" onclick="showScreen('main-menu')">← メニュー</button>
+                <h2>データ取り込み</h2>
+            </header>
+
+            <div class="import-content">
+                <div class="card">
+                    <div class="card__body">
+                        <h3>商品マスタ取り込み</h3>
+                        <input type="file" id="product-file" accept=".xlsx,.xls" class="form-control">
+                        <button class="btn btn--primary btn--full-width mt-8" onclick="importProductData()">
+                            商品マスタ取り込み
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card__body">
+                        <h3>在庫データ取り込み</h3>
+                        <input type="file" id="stock-file" accept=".xlsx,.xls" class="form-control">
+                        <button class="btn btn--primary btn--full-width mt-8" onclick="importStockData()">
+                            在庫データ取り込み
+                        </button>
+                    </div>
+                </div>
+
+                <div class="import-status" id="import-status"></div>
             </div>
         </div>
     </div>
@@ -114,19 +147,33 @@
     <!-- データ出力画面 -->
     <div id="export-section" class="screen">
         <div class="container">
-            <h2 class="screen-title">📤 データ出力</h2>
-            
-            <div class="form-group">
-                <label class="form-label">出力形式</label>
-                <select id="export-format" class="form-control">
-                    <option value="csv">CSV形式</option>
-                    <option value="xlsx">Excel形式</option>
-                </select>
-            </div>
-            
-            <div class="button-group">
-                <button id="export-btn" class="btn btn--action btn--primary" onclick="exportData()">📥 ダウンロード</button>
-                <button class="btn back-btn" onclick="showScreen('main-menu')">← メニューに戻る</button>
+            <header class="screen-header">
+                <button class="btn btn--outline btn--sm" onclick="showScreen('main-menu')">← メニュー</button>
+                <h2>データ出力</h2>
+            </header>
+
+            <div class="export-content">
+                <div class="card">
+                    <div class="card__body">
+                        <h3>出力形式選択</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="radio" name="export-format" value="csv" checked> CSV形式
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="radio" name="export-format" value="excel"> Excel形式
+                            </label>
+                        </div>
+
+                        <div class="export-summary" id="export-summary"></div>
+
+                        <button class="btn btn--primary btn--full-width btn--lg" onclick="exportData()">
+                            📤 データ出力
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -134,107 +181,113 @@
     <!-- 編集画面 -->
     <div id="edit-section" class="screen">
         <div class="container">
-            <h2 class="screen-title">✏️ データ編集</h2>
-            
-            <div id="edit-list" class="data-list"></div>
-            
+            <header class="screen-header">
+                <button class="btn btn--outline btn--sm" onclick="showScreen('main-menu')">← メニュー</button>
+                <h2>データ編集</h2>
+                <button class="btn btn--outline btn--sm" onclick="refreshEditList()">🔄</button>
+            </header>
+
             <div class="edit-controls">
-                <button id="clear-all-btn" class="btn btn--action" onclick="clearAllData()">🗑️ 一括削除</button>
+                <input type="text" id="search-input" class="form-control" placeholder="商品コードまたは商品名で検索" onkeyup="filterEditList()">
+                <button class="btn btn--secondary" onclick="clearAllData()">全削除</button>
             </div>
-            
-            <div class="button-group">
-                <button class="btn back-btn" onclick="showScreen('main-menu')">← メニューに戻る</button>
-            </div>
+
+            <div id="edit-list" class="edit-list"></div>
         </div>
     </div>
 
     <!-- 設定画面 -->
     <div id="settings-section" class="screen">
         <div class="container">
-            <h2 class="screen-title">⚙️ 設定</h2>
-            
-            <form id="settings-form">
-                <div class="form-group">
-                    <label class="form-label">担当者名</label>
-                    <input type="text" id="setting-name" class="form-control" placeholder="担当者名を入力">
+            <header class="screen-header">
+                <button class="btn btn--outline btn--sm" onclick="showScreen('main-menu')">← メニュー</button>
+                <h2>設定</h2>
+            </header>
+
+            <div class="settings-content">
+                <div class="card">
+                    <div class="card__body">
+                        <div class="form-group">
+                            <label class="form-label" for="settings-person">担当者名</label>
+                            <input type="text" id="settings-person" class="form-control" placeholder="担当者名を入力">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="settings-center">センター名</label>
+                            <select id="settings-center" class="form-control">
+                                <option value="">センターを選択</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="beep-enabled" checked> ビープ音有効
+                            </label>
+                        </div>
+
+                        <button class="btn btn--primary btn--full-width" onclick="saveSettings()">
+                            設定保存
+                        </button>
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label">センター名</label>
-                    <input type="text" id="setting-center" class="form-control" list="center-list" placeholder="センター名を選択または入力">
-                    <datalist id="center-list">
-                        <!-- 動的に生成される -->
-                    </datalist>
+
+                <div class="card">
+                    <div class="card__body">
+                        <h3>データ管理</h3>
+                        <button class="btn btn--secondary btn--full-width" onclick="exportBackup()">
+                            バックアップ作成
+                        </button>
+                        <button class="btn btn--warning btn--full-width mt-8" onclick="clearAllData()">
+                            全データ削除
+                        </button>
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label">コード種類</label>
-                    <select id="setting-code-type" class="form-control">
-                        <option value="QR">QRコード</option>
-                        <option value="JAN">JANコード</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">出力形式</label>
-                    <select id="setting-output-format" class="form-control">
-                        <option value="csv">CSV</option>
-                        <option value="xlsx">Excel</option>
-                    </select>
-                </div>
-                
-                <div class="button-group">
-                    <button type="submit" class="btn btn--action btn--primary">💾 設定保存</button>
-                    <button type="button" id="clear-data-btn" class="btn btn--action" onclick="confirmClearAllData()">🗑️ データオールクリア</button>
-                    <button type="button" class="btn back-btn" onclick="showScreen('main-menu')">← メニューに戻る</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
     <!-- 編集モーダル -->
     <div id="edit-modal" class="modal">
         <div class="modal-content">
-            <h3>データ編集</h3>
-            
-            <div class="form-group">
-                <label class="form-label">商品コード</label>
-                <input type="text" id="edit-code" class="form-control" readonly>
+            <div class="modal-header">
+                <h3>データ編集</h3>
+                <button class="btn btn--outline btn--sm" onclick="closeEditModal()">×</button>
             </div>
-            
-            <div class="form-group">
-                <label class="form-label">商品名</label>
-                <input type="text" id="edit-name" class="form-control">
+            <div class="modal-body">
+                <form id="edit-form">
+                    <div class="form-group">
+                        <label class="form-label">商品コード</label>
+                        <input type="text" id="edit-code" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">商品名</label>
+                        <input type="text" id="edit-name" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">数量</label>
+                        <input type="number" id="edit-quantity" class="form-control" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">単位</label>
+                        <select id="edit-unit" class="form-control">
+                            <option value="個">個</option>
+                            <option value="箱">箱</option>
+                            <option value="甲">甲</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ロット番号</label>
+                        <input type="text" id="edit-lot" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">棚番号</label>
+                        <input type="text" id="edit-shelf" class="form-control">
+                    </div>
+                </form>
             </div>
-            
-            <div class="form-group">
-                <label class="form-label">数量</label>
-                <input type="number" id="edit-quantity" class="form-control" min="1">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">単位</label>
-                <select id="edit-unit" class="form-control">
-                    <option value="個">個</option>
-                    <option value="箱">箱</option>
-                    <option value="甲">甲</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">ロット</label>
-                <input type="text" id="edit-lot" class="form-control">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">棚番号</label>
-                <input type="text" id="edit-shelf" class="form-control">
-            </div>
-            
-            <div class="modal-buttons">
-                <button id="save-edit-btn" class="btn btn--action btn--primary" onclick="saveEdit()">保存</button>
-                <button id="delete-edit-btn" class="btn btn--action" onclick="deleteEdit()">削除</button>
-                <button id="cancel-edit-btn" class="btn" onclick="closeEditModal()">キャンセル</button>
+            <div class="modal-footer">
+                <button class="btn btn--primary" onclick="saveEdit()">保存</button>
+                <button class="btn btn--secondary" onclick="closeEditModal()">キャンセル</button>
             </div>
         </div>
     </div>
