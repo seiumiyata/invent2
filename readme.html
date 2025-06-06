@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>棚卸し管理PWA（Progressive Web App）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: "Segoe UI", "ヒラギノ角ゴ ProN", Meiryo, sans-serif; background: #f9f9f9; color: #222; margin: 0; padding: 0 10px; }
+    h1, h2, h3 { color: #2a4d8f; }
+    hr { margin: 30px 0; }
+    table { border-collapse: collapse; margin: 12px 0; width: 100%; background: #fff; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+    ul, ol { margin: 10px 0 10px 25px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    blockquote { background: #eef6ff; border-left: 4px solid #2a4d8f; margin: 18px 0; padding: 10px 16px; color: #333; }
+    .logo { display: block; margin: 25px auto 10px auto; }
+    .center { text-align: center; }
+  </style>
+</head>
+<body>
+
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark@2x.png" alt="perplexityロゴ" class="logo" width="120" />
+
+<h1>棚卸し管理PWA（Progressive Web App）</h1>
+
+<hr>
+
+<h2>このアプリについて</h2>
+<p>
+<strong>棚卸し管理PWA</strong>は、現場の棚卸し作業をスマートフォンやタブレットで効率良く行うためのウェブアプリです。<br>
+QR/JANコードスキャン、商品マスタ・在庫データの一括取込、オフライン対応、データ出力など、初心者でも直感的に使える機能を揃えています。
+</p>
+
+<hr>
+
+<h2>目次</h2>
+<ul>
+  <li>特長</li>
+  <li>画面イメージ</li>
+  <li>初期セットアップ</li>
+  <li>基本の使い方</li>
+  <li>商品マスタ・在庫データの準備方法</li>
+  <li>よくある質問</li>
+  <li>サポート</li>
+</ul>
+
+<hr>
+
+<h2>特長</h2>
+<ul>
+  <li><strong>QR/JANコードスキャン</strong>：カメラで商品コードやJANコードを読み取り、入力ミスを防止します。</li>
+  <li><strong>Excel/CSVデータ一括取込</strong>：商品マスタ・在庫データをExcelやCSVファイルから簡単に登録できます。</li>
+  <li><strong>オフライン対応</strong>：インターネットがない現場でも使えます。データは端末内に保存されます。</li>
+  <li><strong>データ出力</strong>：棚卸し結果をCSVやExcel形式でダウンロードできます。</li>
+  <li><strong>編集・履歴管理</strong>：登録済みのデータを修正・削除できます。</li>
+  <li><strong>PWA対応</strong>：ホーム画面に追加してアプリのように利用できます。</li>
+</ul>
+
+<hr>
+
+<h2>画面イメージ</h2>
+<ul>
+  <li>メインメニュー</li>
+  <li>棚卸し入力画面やデータ出力画面など、スマホで見やすいデザインです。</li>
+</ul>
+
+<hr>
+
+<h2>初期セットアップ</h2>
+<ol>
+  <li><strong>必要ファイルを配置</strong>
+    <ul>
+      <li>index.html</li>
+      <li>app.js</li>
+      <li>style.css</li>
+      <li>manifest.json</li>
+      <li>sw.js</li>
+      <li>html5-qrcode.min.js</li>
+      <li>xlsx.full.min.js</li>
+      <li>icon-192.png（またはjpg）</li>
+      <li>icon-512.png（またはjpg）</li>
+    </ul>
+  </li>
+  <li><strong>ローカルサーバーで起動</strong>
+    <ul>
+      <li>PCなら「VSCodeのLive Server」や「http-server」などで公開してください。</li>
+    </ul>
+  </li>
+  <li><strong>スマートフォンでアクセス</strong>
+    <ul>
+      <li>ChromeやSafariでアクセスし、「ホーム画面に追加」でPWAとして使えます。</li>
+    </ul>
+  </li>
+</ol>
+
+<hr>
+
+<h2>基本の使い方</h2>
+
+<h3>1. 初期設定</h3>
+<ul>
+  <li>メニューの「⚙️ 設定」から担当者名・センター名（拠点名）を入力し、保存します。</li>
+</ul>
+
+<h3>2. 商品マスタ・在庫データの取り込み</h3>
+<h4>商品マスタの準備</h4>
+<p>ExcelまたはCSVで、以下のような内容のファイルを用意します。</p>
+
+<table>
+  <tr>
+    <th>A列（0）</th><th>B列（1）</th><th>…</th><th>W列（22）</th><th>…</th><th>P列（15）</th><th>…</th><th>AA列（26）</th>
+  </tr>
+  <tr>
+    <td>商品コード</td><td>商品名</td><td>…</td><td>JANコード</td><td>…</td><td>カテゴリ</td><td>…</td><td>価格</td>
+  </tr>
+  <tr>
+    <td>P001</td><td>りんごジュース</td><td>…</td><td>4901234567890</td><td>…</td><td>飲料</td><td>…</td><td>150</td>
+  </tr>
+</table>
+<ul>
+  <li><strong>必須：</strong>
+    <ul>
+      <li>A列（0）：商品コード</li>
+      <li>B列（1）：商品名</li>
+      <li>W列（22）：JANコード</li>
+    </ul>
+  </li>
+  <li><strong>任意：</strong>
+    <ul>
+      <li>P列（15）：カテゴリ</li>
+      <li>AA列（26）：価格</li>
+    </ul>
+  </li>
+</ul>
+
+<h4>在庫データの準備</h4>
+<table>
+  <tr>
+    <th>A列（0）</th><th>B列（1）</th><th>C列（2）</th><th>…</th><th>J列（9）</th><th>…</th><th>P列（15）</th>
+  </tr>
+  <tr>
+    <td>商品コード</td><td>商品名</td><td>数量</td><td>…</td><td>センター名</td><td>…</td><td>ロット番号</td>
+  </tr>
+  <tr>
+    <td>P001</td><td>りんごジュース</td><td>100</td><td>…</td><td>東京センター</td><td>…</td><td>LOT20240601</td>
+  </tr>
+</table>
+<ul>
+  <li><strong>必須：</strong>
+    <ul>
+      <li>A列（0）：商品コード</li>
+    </ul>
+  </li>
+  <li><strong>任意：</strong>
+    <ul>
+      <li>B列（1）：商品名</li>
+      <li>C列（2）：数量</li>
+      <li>J列（9）：センター名</li>
+      <li>P列（15）：ロット番号</li>
+    </ul>
+  </li>
+</ul>
+
+<h4>ファイルの作り方</h4>
+<ul>
+  <li>Excelで上記の列に合わせてデータを入力し、「名前を付けて保存」→「CSV UTF-8（カンマ区切り）」で保存してください。</li>
+  <li>列の順番・位置を必ず守ってください。不要な列は空欄でもOKです。</li>
+</ul>
+
+<h4>取り込み方法</h4>
+<ol>
+  <li>メニューから「📥 データ取り込み」を選択。</li>
+  <li>「商品マスタ取り込み」「在庫データ取り込み」それぞれでファイルを選択してアップロード。</li>
+</ol>
+
+<hr>
+
+<h3>3. 棚卸し作業</h3>
+<ol>
+  <li>「📋 棚卸し」メニューを選択。</li>
+  <li>「QRスキャン開始」ボタンでカメラを起動し、商品コードやJANコードを読み取ります。</li>
+  <li>商品名・数量・単位・ロット番号・棚番号を入力し、「登録」ボタンを押します。</li>
+  <li>入力内容は端末内に保存されます（オフラインOK）。</li>
+</ol>
+
+<hr>
+
+<h3>4. データ編集・出力</h3>
+<ul>
+  <li>「✏️ 編集」メニューで登録済みの棚卸しデータを修正・削除できます。</li>
+  <li>「📤 データ出力」でCSVまたはExcel形式でダウンロードできます。</li>
+</ul>
+
+<hr>
+
+<h2>商品マスタ・在庫データのファイル形式（サンプル）</h2>
+
+<h3>商品マスタ（CSV例）</h3>
+<pre>
+商品コード,商品名,,,,,,,,,,,,,,カテゴリ,,,,,,,,JANコード,,,価格
+P001,りんごジュース,,,,,,,,,,,,,飲料,,,,,,,4901234567890,,,150
+</pre>
+
+<h3>在庫データ（CSV例）</h3>
+<pre>
+商品コード,商品名,数量,,,,,,,センター名,,,,,,ロット番号
+P001,りんごジュース,100,,,,,,,東京センター,,,,,,LOT20240601
+</pre>
+<ul>
+  <li>1行目はヘッダー、2行目以降にデータを記載してください。</li>
+  <li>必要な列（A列, B列, W列など）の位置を必ず守ってください。</li>
+</ul>
+
+<hr>
+
+<h2>よくある質問</h2>
+<dl>
+  <dt><strong>Q. オフラインで使えますか？</strong></dt>
+  <dd>A. はい。インターネットがなくても作業できます（データは端末内に保存されます）。</dd>
+  <dt><strong>Q. QR/JANコード以外の入力もできますか？</strong></dt>
+  <dd>A. できます。手入力にも対応しています。</dd>
+  <dt><strong>Q. データのバックアップや提出は？</strong></dt>
+  <dd>A. データ出力機能でCSV/Excelにエクスポートし、メールやクラウドで提出できます。</dd>
+  <dt><strong>Q. ファイルの列順を間違えた場合は？</strong></dt>
+  <dd>A. 必要な列（商品コード・JANコードなど）が正しい位置にないと、正しく読み込まれません。Excelで列の位置を調整してください。</dd>
+</dl>
+
+<hr>
+
+<h2>サポート・お問い合わせ</h2>
+<ul>
+  <li>ご不明点やカスタマイズのご相談は、開発担当までご連絡ください。</li>
+</ul>
+
+<hr>
+
+<p class="center"><strong>現場の棚卸しを、もっとシンプルに・もっとスマートに。</strong></p>
+
+<hr>
+
+<p>（最終更新：2025年6月4日）</p>
+
+<blockquote>
+※このREADMEは初心者向けに詳しく記載しています。<br>
+サンプルCSVやExcelの雛形が必要な場合はご相談ください。
+</blockquote>
+
+<p>【アイコン画像（192x192/512x512）も同梱してください】</p>
+
+<div class="center">⁂</div>
+
+</body>
+</html>
